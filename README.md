@@ -10,7 +10,6 @@ Bank Tab Storage adds a RuneLite side panel for keeping reusable snapshots of Ba
 - Remove snapshots without deleting tagged items
 - Import and export the full storage collection through the clipboard
 - Import RuneLite's single-tab `banktags,1` clipboard format
-- Use a dedicated storage icon in the Plugin Hub and RuneLite navigation bar
 - Show each saved tab with its configured item icon and original name
 
 ## Behavior
@@ -24,15 +23,3 @@ Storage follows the active RuneLite profile because it is saved through RuneLite
 ## Data handling
 
 Saved tabs remain in the active RuneLite profile. Clipboard data is read or written only when the user chooses an import or export action. The plugin does not make network requests.
-
-## Development
-
-The project follows the standard RuneLite Plugin Hub layout and targets Java 11.
-
-Run the Gradle `run` task to launch a development client, or build the sideloaded JAR with:
-
-```text
-mvn clean package
-```
-
-The Maven file is included for JL Launcher Ext. Plugin Hub builds use the standard build declared in `runelite-plugin.properties`.
