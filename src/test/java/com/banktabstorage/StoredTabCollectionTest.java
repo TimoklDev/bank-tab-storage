@@ -1,4 +1,4 @@
-package com.banktagsstorage;
+package com.banktabstorage;
 
 import java.util.List;
 import org.junit.Assert;
@@ -33,4 +33,3 @@ public class StoredTabCollectionTest
         return new StoredBankTag(name, icon, List.of(icon), null, false, enabled).validatedCopy();
     }
 }
-

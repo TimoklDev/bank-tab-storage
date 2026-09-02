@@ -1,4 +1,4 @@
-package com.banktagsstorage;
+package com.banktabstorage;
 
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
@@ -36,7 +36,7 @@ import javax.swing.SwingUtilities;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.util.AsyncBufferedImage;
 
-final class BankTagsStoragePanel extends PluginPanel
+final class BankTabStoragePanel extends PluginPanel
 {
     private static final Color BACKGROUND = new Color(40, 40, 40);
     private static final Color SURFACE = new Color(53, 53, 53);
@@ -61,7 +61,7 @@ final class BankTagsStoragePanel extends PluginPanel
     private final JButton toggleButton;
     private final JButton removeButton;
 
-    BankTagsStoragePanel(StorageActions actions, IntFunction<BufferedImage> imageProvider)
+    BankTabStoragePanel(StorageActions actions, IntFunction<BufferedImage> imageProvider)
     {
         super(false);
         this.actions = actions;

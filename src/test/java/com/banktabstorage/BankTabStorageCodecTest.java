@@ -1,13 +1,13 @@
-package com.banktagsstorage;
+package com.banktabstorage;
 
 import com.google.gson.Gson;
 import java.util.List;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class BankTagsStorageCodecTest
+public class BankTabStorageCodecTest
 {
-    private final BankTagsStorageCodec codec = new BankTagsStorageCodec(new Gson());
+    private final BankTabStorageCodec codec = new BankTabStorageCodec(new Gson());
 
     @Test
     public void roundTripsCompleteSnapshots()
@@ -29,6 +29,12 @@ public class BankTagsStorageCodecTest
         Assert.assertEquals(List.of(4151, 11840), tab.getItemIds());
         Assert.assertEquals(List.of(-1, -1, 11840), tab.getLayout());
         Assert.assertFalse(tab.isEnabled());
+    }
+
+    @Test
+    public void importsLegacyStorageFormat()
+    {
+        Assert.assertTrue(codec.decode("{\"kind\":\"bank-tags-storage\",\"version\":1,\"tabs\":[]}").isEmpty());
     }
 
     @Test(expected = IllegalArgumentException.class)

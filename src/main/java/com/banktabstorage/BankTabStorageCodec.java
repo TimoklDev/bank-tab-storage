@@ -1,4 +1,4 @@
-package com.banktagsstorage;
+package com.banktabstorage;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -8,20 +8,20 @@ import java.util.List;
 import java.util.Set;
 import net.runelite.client.util.Text;
 
-final class BankTagsStorageCodec
+final class BankTabStorageCodec
 {
     private static final int MAX_TEXT_LENGTH = 5_000_000;
     private static final int MAX_LAYOUT_INDEX = 9999;
     private final Gson gson;
 
-    BankTagsStorageCodec(Gson gson)
+    BankTabStorageCodec(Gson gson)
     {
         this.gson = gson.newBuilder().setPrettyPrinting().create();
     }
 
     String encode(List<StoredBankTag> tabs)
     {
-        return gson.toJson(new BankTagsStorageData(tabs));
+        return gson.toJson(new BankTabStorageData(tabs));
     }
 
     List<StoredBankTag> decode(String text)
@@ -46,7 +46,7 @@ final class BankTagsStorageCodec
             {
                 throw new IllegalArgumentException("The clipboard does not contain Bank Tab Storage data");
             }
-            BankTagsStorageData data = gson.fromJson(root, BankTagsStorageData.class);
+            BankTabStorageData data = gson.fromJson(root, BankTabStorageData.class);
             return data.validatedTabs();
         }
         catch (IllegalArgumentException exception)

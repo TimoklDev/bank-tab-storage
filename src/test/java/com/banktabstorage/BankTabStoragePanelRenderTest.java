@@ -1,4 +1,4 @@
-package com.banktagsstorage;
+package com.banktabstorage;
 
 import java.awt.Color;
 import java.awt.Graphics2D;
@@ -8,7 +8,7 @@ import javax.swing.SwingUtilities;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class BankTagsStoragePanelRenderTest
+public class BankTabStoragePanelRenderTest
 {
     @Test
     public void rendersPopulatedVault() throws Exception
@@ -16,7 +16,7 @@ public class BankTagsStoragePanelRenderTest
         final BufferedImage[] rendered = new BufferedImage[1];
         SwingUtilities.invokeAndWait(() ->
         {
-            BankTagsStoragePanel panel = new BankTagsStoragePanel(new NoOpActions(), this::itemImage);
+            BankTabStoragePanel panel = new BankTabStoragePanel(new NoOpActions(), this::itemImage);
             panel.setTabs(List.of(
                 new StoredBankTag("slayer", 4151, List.of(4151, 11840, 12006),
                     List.of(4151, -1, 11840), false, true),

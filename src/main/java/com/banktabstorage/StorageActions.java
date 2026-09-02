@@ -1,4 +1,4 @@
-package com.banktagsstorage;
+package com.banktabstorage;
 
 interface StorageActions
 {
@@ -14,4 +14,3 @@ interface StorageActions
 
     String exportText();
 }
-

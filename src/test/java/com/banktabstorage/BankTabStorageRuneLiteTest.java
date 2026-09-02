@@ -1,14 +1,13 @@
-package com.banktagsstorage;
+package com.banktabstorage;
 
 import net.runelite.client.RuneLite;
 import net.runelite.client.externalplugins.ExternalPluginManager;
 
-public class BankTagsStorageRuneLiteTest
+public class BankTabStorageRuneLiteTest
 {
     public static void main(String[] args) throws Exception
     {
-        ExternalPluginManager.loadBuiltin(BankTagsStoragePlugin.class);
+        ExternalPluginManager.loadBuiltin(BankTabStoragePlugin.class);
         RuneLite.main(args);
     }
 }
-

@@ -1,24 +1,25 @@
-package com.banktagsstorage;
+package com.banktabstorage;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-final class BankTagsStorageData
+final class BankTabStorageData
 {
-    static final String KIND = "bank-tags-storage";
+    static final String KIND = "bank-tab-storage";
+    private static final String LEGACY_KIND = "bank-tags-storage";
     static final int VERSION = 1;
     private static final int MAX_TABS = 500;
     private String kind;
     private int version;
     private List<StoredBankTag> tabs;
 
-    private BankTagsStorageData()
+    private BankTabStorageData()
     {
     }
 
-    BankTagsStorageData(List<StoredBankTag> tabs)
+    BankTabStorageData(List<StoredBankTag> tabs)
     {
         this.kind = KIND;
         this.version = VERSION;
@@ -27,7 +28,7 @@ final class BankTagsStorageData
 
     List<StoredBankTag> validatedTabs()
     {
-        if (!KIND.equals(kind) || version != VERSION)
+        if ((!KIND.equals(kind) && !LEGACY_KIND.equals(kind)) || version != VERSION)
         {
             throw new IllegalArgumentException("The clipboard does not contain a supported Bank Tab Storage export");
         }

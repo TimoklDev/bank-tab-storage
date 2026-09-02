@@ -14,7 +14,7 @@ repositories {
 }
 
 def runeLiteVersion = 'latest.release'
-def pluginMainClass = 'com.banktagsstorage.BankTagsStorageRuneLiteTest'
+def pluginMainClass = 'com.banktabstorage.BankTabStorageRuneLiteTest'
 
 dependencies {
 	compileOnly group: 'net.runelite', name: 'client', version: runeLiteVersion
@@ -23,7 +23,7 @@ dependencies {
 	testImplementation group: 'net.runelite', name: 'jshell', version: runeLiteVersion
 }
 
-group = 'com.banktagsstorage'
+group = 'com.banktabstorage'
 version = '1.0.0'
 
 tasks.withType(JavaCompile).configureEach {

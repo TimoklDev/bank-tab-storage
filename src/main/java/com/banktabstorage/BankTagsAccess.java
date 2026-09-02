@@ -1,4 +1,4 @@
-package com.banktagsstorage;
+package com.banktabstorage;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;

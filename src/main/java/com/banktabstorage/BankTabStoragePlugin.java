@@ -1,4 +1,4 @@
-package com.banktagsstorage;
+package com.banktabstorage;
 
 import com.google.gson.Gson;
 import java.awt.image.BufferedImage;
@@ -30,9 +30,10 @@ import net.runelite.client.util.ImageUtil;
     tags = {"bank", "tags", "storage", "layout", "loadout", "preset"}
 )
 @PluginDependency(BankTagsPlugin.class)
-public final class BankTagsStoragePlugin extends Plugin implements StorageActions
+public final class BankTabStoragePlugin extends Plugin implements StorageActions
 {
-    private static final String CONFIG_GROUP = "banktagsstorage";
+    private static final String CONFIG_GROUP = "banktabstorage";
+    private static final String LEGACY_CONFIG_GROUP = "banktagsstorage";
     private static final String CONFIG_KEY = "savedTabs";
     private volatile List<StoredBankTag> storedTabs = List.of();
     private volatile boolean changingBankTabs;
@@ -68,20 +69,20 @@ public final class BankTagsStoragePlugin extends Plugin implements StorageAction
     private BankTagsPlugin bankTagsPlugin;
 
     private BankTagsAccess bankTags;
-    private BankTagsStorageCodec codec;
-    private BankTagsStoragePanel panel;
+    private BankTabStorageCodec codec;
+    private BankTabStoragePanel panel;
     private NavigationButton navigationButton;
 
     @Override
     protected void startUp()
     {
-        codec = new BankTagsStorageCodec(gson);
+        codec = new BankTabStorageCodec(gson);
         bankTags = new BankTagsAccess(configManager, tagManager, layoutManager, client, tabInterface, bankTagsPlugin);
         loadStorage();
         storedTabs = immutable(StoredTabCollection.syncEnabled(storedTabs, bankTags.visibleNames()));
         SwingUtilities.invokeLater(() ->
         {
-            panel = new BankTagsStoragePanel(this, itemManager::getImage);
+            panel = new BankTabStoragePanel(this, itemManager::getImage);
             panel.setTabs(storedTabs, "Save the tabs you want to keep ready");
             navigationButton = NavigationButton.builder()
                 .tooltip("Bank Tab Storage")
@@ -275,6 +276,12 @@ public final class BankTagsStoragePlugin extends Plugin implements StorageAction
     private void loadStorage()
     {
         String json = configManager.getConfiguration(CONFIG_GROUP, CONFIG_KEY);
+        boolean legacy = false;
+        if (json == null || json.trim().isEmpty())
+        {
+            json = configManager.getConfiguration(LEGACY_CONFIG_GROUP, CONFIG_KEY);
+            legacy = json != null && !json.trim().isEmpty();
+        }
         if (json == null || json.trim().isEmpty())
         {
             storedTabs = List.of();
@@ -283,6 +290,11 @@ public final class BankTagsStoragePlugin extends Plugin implements StorageAction
         try
         {
             storedTabs = immutable(codec.decode(json));
+            if (legacy)
+            {
+                persist();
+                configManager.unsetConfiguration(LEGACY_CONFIG_GROUP, CONFIG_KEY);
+            }
         }
         catch (IllegalArgumentException exception)
         {
@@ -330,6 +342,6 @@ public final class BankTagsStoragePlugin extends Plugin implements StorageAction
 
     private static BufferedImage createNavigationIcon()
     {
-        return ImageUtil.loadImageResource(BankTagsStoragePlugin.class, "sidebar-icon.png");
+        return ImageUtil.loadImageResource(BankTabStoragePlugin.class, "sidebar-icon.png");
     }
 }
