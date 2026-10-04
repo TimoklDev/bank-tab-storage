@@ -18,13 +18,13 @@ def pluginMainClass = 'com.banktabstorage.BankTabStorageRuneLiteTest'
 
 dependencies {
 	compileOnly group: 'net.runelite', name: 'client', version: runeLiteVersion
-	testImplementation 'junit:junit:4.12'
+	testImplementation 'junit:junit:4.13.2'
 	testImplementation group: 'net.runelite', name: 'client', version: runeLiteVersion
 	testImplementation group: 'net.runelite', name: 'jshell', version: runeLiteVersion
 }
 
 group = 'com.banktabstorage'
-version = '1.0.0'
+version = '1.0.1'
 
 tasks.withType(JavaCompile).configureEach {
 	options.encoding = 'UTF-8'
