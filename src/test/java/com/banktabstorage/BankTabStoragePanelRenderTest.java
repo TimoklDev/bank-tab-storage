@@ -4,6 +4,7 @@ import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.swing.SwingUtilities;
 import org.junit.Assert;
 import org.junit.Test;
@@ -33,6 +34,29 @@ public class BankTabStoragePanelRenderTest
         Assert.assertNotNull(rendered[0]);
         Assert.assertEquals(242, rendered[0].getWidth());
         Assert.assertEquals(700, rendered[0].getHeight());
+    }
+
+    @Test
+    public void reusesTheObservedImageWhileRendering() throws Exception
+    {
+        AtomicInteger requests = new AtomicInteger();
+        SwingUtilities.invokeAndWait(() ->
+        {
+            BankTabStoragePanel panel = new BankTabStoragePanel(new NoOpActions(), itemId ->
+            {
+                requests.incrementAndGet();
+                return itemImage(itemId);
+            });
+            panel.setTabs(List.of(new StoredBankTag("slayer", 4151, List.of(4151),
+                null, false, true)), "Saved 1 visible tab");
+            panel.setSize(242, 700);
+            layoutTree(panel);
+            BufferedImage rendered = new BufferedImage(242, 700, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D graphics = rendered.createGraphics();
+            panel.paint(graphics);
+            graphics.dispose();
+        });
+        Assert.assertEquals(1, requests.get());
     }
 
     private BufferedImage itemImage(int itemId)

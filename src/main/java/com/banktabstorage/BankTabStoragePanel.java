@@ -16,8 +16,10 @@ import java.awt.Toolkit;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
 import java.awt.image.BufferedImage;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.IntFunction;
 import javax.swing.BorderFactory;
@@ -52,7 +54,7 @@ final class BankTabStoragePanel extends PluginPanel
     private final IntFunction<BufferedImage> imageProvider;
     private final DefaultListModel<StoredBankTag> tabModel = new DefaultListModel<>();
     private final JList<StoredBankTag> tabList = new JList<>(tabModel);
-    private final Set<Integer> watchedImages = new HashSet<>();
+    private final Map<Integer, BufferedImage> itemImages = new HashMap<>();
     private final CardLayout contentLayout = new CardLayout();
     private final JPanel content = new JPanel(contentLayout);
     private final JLabel countLabel = new JLabel();
@@ -156,11 +158,14 @@ final class BankTabStoragePanel extends PluginPanel
     {
         String selectedName = selectedName();
         tabModel.clear();
+        Set<Integer> currentImageIds = new HashSet<>();
         for (StoredBankTag tab : tabs)
         {
             tabModel.addElement(tab.copy());
-            watchImage(tab.getIconItemId());
+            currentImageIds.add(tab.getIconItemId());
+            itemImage(tab.getIconItemId());
         }
+        itemImages.keySet().retainAll(currentImageIds);
         if (selectedName != null)
         {
             selectByName(selectedName);
@@ -375,17 +380,24 @@ final class BankTabStoragePanel extends PluginPanel
         }
     }
 
-    private void watchImage(int itemId)
+    private BufferedImage itemImage(int itemId)
     {
-        if (!watchedImages.add(itemId))
+        BufferedImage image = itemImages.get(itemId);
+        if (image != null)
         {
-            return;
+            return image;
         }
-        BufferedImage image = imageProvider.apply(itemId);
+        image = imageProvider.apply(itemId);
+        if (image == null)
+        {
+            return null;
+        }
+        itemImages.put(itemId, image);
         if (image instanceof AsyncBufferedImage)
         {
             ((AsyncBufferedImage) image).onLoaded(() -> SwingUtilities.invokeLater(tabList::repaint));
         }
+        return image;
     }
 
     private final class TabRenderer extends JPanel implements ListCellRenderer<StoredBankTag>
@@ -430,7 +442,7 @@ final class BankTabStoragePanel extends PluginPanel
                 painter.fillRect(0, 0, 3, getHeight() - 6);
                 left = 11;
             }
-            BufferedImage image = imageProvider.apply(tab.getIconItemId());
+            BufferedImage image = itemImage(tab.getIconItemId());
             if (image != null)
             {
                 painter.drawImage(image, left, 16, null);
