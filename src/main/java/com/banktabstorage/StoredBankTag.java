@@ -6,7 +6,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import net.runelite.client.plugins.banktags.tabs.TabInterface;
 import net.runelite.client.util.Text;
 
 final class StoredBankTag
@@ -105,13 +104,18 @@ final class StoredBankTag
             throw new IllegalArgumentException("A saved tab is missing its name");
         }
         StringBuilder filtered = new StringBuilder();
-        value.codePoints().filter(TabInterface.FILTERED_CHARS).forEach(filtered::appendCodePoint);
+        value.codePoints().filter(StoredBankTag::isAllowedNameCharacter).forEach(filtered::appendCodePoint);
         String normalized = Text.standardize(filtered.toString());
         if (normalized.isEmpty() || normalized.length() > MAX_NAME_LENGTH)
         {
             throw new IllegalArgumentException("A saved tab has an invalid name");
         }
         return normalized;
+    }
+
+    private static boolean isAllowedNameCharacter(int value)
+    {
+        return "</>:".indexOf(value) == -1;
     }
 
     private static List<Integer> normalizeItems(List<Integer> values)

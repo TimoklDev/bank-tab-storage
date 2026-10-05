@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
-import net.runelite.api.Client;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
@@ -17,9 +16,9 @@ import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDependency;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.banktags.BankTagsPlugin;
+import net.runelite.client.plugins.banktags.BankTagsService;
 import net.runelite.client.plugins.banktags.TagManager;
 import net.runelite.client.plugins.banktags.tabs.LayoutManager;
-import net.runelite.client.plugins.banktags.tabs.TabInterface;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.util.ImageUtil;
@@ -42,9 +41,6 @@ public final class BankTabStoragePlugin extends Plugin implements StorageActions
     private Gson gson;
 
     @Inject
-    private Client client;
-
-    @Inject
     private ClientThread clientThread;
 
     @Inject
@@ -63,10 +59,7 @@ public final class BankTabStoragePlugin extends Plugin implements StorageActions
     private LayoutManager layoutManager;
 
     @Inject
-    private TabInterface tabInterface;
-
-    @Inject
-    private BankTagsPlugin bankTagsPlugin;
+    private BankTagsService bankTagsService;
 
     private BankTagsAccess bankTags;
     private BankTabStorageCodec codec;
@@ -77,7 +70,7 @@ public final class BankTabStoragePlugin extends Plugin implements StorageActions
     protected void startUp()
     {
         codec = new BankTabStorageCodec(gson);
-        bankTags = new BankTagsAccess(configManager, tagManager, layoutManager, client, tabInterface, bankTagsPlugin);
+        bankTags = new BankTagsAccess(configManager, tagManager, layoutManager, bankTagsService);
         loadStorage();
         storedTabs = immutable(StoredTabCollection.syncEnabled(storedTabs, bankTags.visibleNames()));
         SwingUtilities.invokeLater(() ->
@@ -164,7 +157,7 @@ public final class BankTabStoragePlugin extends Plugin implements StorageActions
             {
                 bankTags.applySnapshot(tab);
                 bankTags.setVisible(tab.getName(), true);
-                bankTags.refreshBank(null);
+                bankTags.refreshActiveTab(tab.getName(), false);
             }
             finally
             {
@@ -186,7 +179,7 @@ public final class BankTabStoragePlugin extends Plugin implements StorageActions
             try
             {
                 bankTags.setVisible(tab.getName(), enabled);
-                bankTags.refreshBank(enabled ? null : tab.getName());
+                bankTags.refreshActiveTab(tab.getName(), !enabled);
             }
             finally
             {
@@ -208,7 +201,7 @@ public final class BankTabStoragePlugin extends Plugin implements StorageActions
             try
             {
                 bankTags.setVisible(tab.getName(), false);
-                bankTags.refreshBank(tab.getName());
+                bankTags.refreshActiveTab(tab.getName(), true);
             }
             finally
             {

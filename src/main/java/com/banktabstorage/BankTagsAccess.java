@@ -4,16 +4,13 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import net.runelite.api.Client;
-import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.ItemID;
-import net.runelite.api.widgets.Widget;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.plugins.banktags.BankTagsPlugin;
+import net.runelite.client.plugins.banktags.BankTagsService;
 import net.runelite.client.plugins.banktags.TagManager;
 import net.runelite.client.plugins.banktags.tabs.Layout;
 import net.runelite.client.plugins.banktags.tabs.LayoutManager;
-import net.runelite.client.plugins.banktags.tabs.TabInterface;
 import net.runelite.client.util.Text;
 
 final class BankTagsAccess
@@ -21,19 +18,15 @@ final class BankTagsAccess
     private final ConfigManager configManager;
     private final TagManager tagManager;
     private final LayoutManager layoutManager;
-    private final Client client;
-    private final TabInterface tabInterface;
-    private final BankTagsPlugin bankTagsPlugin;
+    private final BankTagsService bankTagsService;
 
     BankTagsAccess(ConfigManager configManager, TagManager tagManager, LayoutManager layoutManager,
-        Client client, TabInterface tabInterface, BankTagsPlugin bankTagsPlugin)
+        BankTagsService bankTagsService)
     {
         this.configManager = configManager;
         this.tagManager = tagManager;
         this.layoutManager = layoutManager;
-        this.client = client;
-        this.tabInterface = tabInterface;
-        this.bankTagsPlugin = bankTagsPlugin;
+        this.bankTagsService = bankTagsService;
     }
 
     List<StoredBankTag> captureVisibleTabs()
@@ -107,24 +100,20 @@ final class BankTagsAccess
             BankTagsPlugin.TAG_TABS_CONFIG, Text.toCSV(names));
     }
 
-    void refreshBank(String hiddenTab)
+    void refreshActiveTab(String changedTab, boolean close)
     {
-        String activeTag = bankTagsPlugin.getActiveTag();
-        int activeOptions = bankTagsPlugin.getOptions();
-        tabInterface.deinit();
-        Widget bank = client.getWidget(InterfaceID.Bankmain.UNIVERSE);
-        if (bank != null && bank.getOnLoadListener() != null)
+        String activeTag = bankTagsService.getActiveTag();
+        if (activeTag == null
+            || !StoredBankTag.normalizeName(activeTag).equals(StoredBankTag.normalizeName(changedTab)))
         {
-            client.createScriptEventBuilder(bank.getOnLoadListener())
-                .setSource(bank)
-                .build()
-                .run();
+            return;
         }
-        if (activeTag != null && (hiddenTab == null
-            || !StoredBankTag.normalizeName(activeTag).equals(StoredBankTag.normalizeName(hiddenTab))))
+        if (close)
         {
-            bankTagsPlugin.openBankTag(activeTag, activeOptions);
+            bankTagsService.closeBankTag();
+            return;
         }
+        bankTagsService.openBankTag(activeTag, BankTagsService.OPTION_ALLOW_MODIFICATIONS);
     }
 
     private StoredBankTag capture(String value)
