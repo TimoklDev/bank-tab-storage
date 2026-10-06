@@ -18,14 +18,16 @@ final class BankTagsAccess
     private final ConfigManager configManager;
     private final TagManager tagManager;
     private final LayoutManager layoutManager;
+    private final BankTabReloader tabReloader;
     private final BankTagsService bankTagsService;
 
     BankTagsAccess(ConfigManager configManager, TagManager tagManager, LayoutManager layoutManager,
-        BankTagsService bankTagsService)
+        BankTabReloader tabReloader, BankTagsService bankTagsService)
     {
         this.configManager = configManager;
         this.tagManager = tagManager;
         this.layoutManager = layoutManager;
+        this.tabReloader = tabReloader;
         this.bankTagsService = bankTagsService;
     }
 
@@ -100,9 +102,10 @@ final class BankTagsAccess
             BankTagsPlugin.TAG_TABS_CONFIG, Text.toCSV(names));
     }
 
-    void refreshActiveTab(String changedTab, boolean close)
+    void refreshBank(String changedTab, boolean close)
     {
         String activeTag = bankTagsService.getActiveTag();
+        tabReloader.reload();
         if (activeTag == null
             || !StoredBankTag.normalizeName(activeTag).equals(StoredBankTag.normalizeName(changedTab)))
         {

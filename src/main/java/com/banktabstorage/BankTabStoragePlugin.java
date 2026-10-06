@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
+import net.runelite.api.Client;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
@@ -41,6 +42,9 @@ public final class BankTabStoragePlugin extends Plugin implements StorageActions
     private Gson gson;
 
     @Inject
+    private Client client;
+
+    @Inject
     private ClientThread clientThread;
 
     @Inject
@@ -70,7 +74,8 @@ public final class BankTabStoragePlugin extends Plugin implements StorageActions
     protected void startUp()
     {
         codec = new BankTabStorageCodec(gson);
-        bankTags = new BankTagsAccess(configManager, tagManager, layoutManager, bankTagsService);
+        bankTags = new BankTagsAccess(configManager, tagManager, layoutManager,
+            new BankTagTabsReloader(configManager, client), bankTagsService);
         loadStorage();
         storedTabs = immutable(StoredTabCollection.syncEnabled(storedTabs, bankTags.visibleNames()));
         SwingUtilities.invokeLater(() ->
@@ -157,7 +162,7 @@ public final class BankTabStoragePlugin extends Plugin implements StorageActions
             {
                 bankTags.applySnapshot(tab);
                 bankTags.setVisible(tab.getName(), true);
-                bankTags.refreshActiveTab(tab.getName(), false);
+                bankTags.refreshBank(tab.getName(), false);
             }
             finally
             {
@@ -179,7 +184,7 @@ public final class BankTabStoragePlugin extends Plugin implements StorageActions
             try
             {
                 bankTags.setVisible(tab.getName(), enabled);
-                bankTags.refreshActiveTab(tab.getName(), !enabled);
+                bankTags.refreshBank(tab.getName(), !enabled);
             }
             finally
             {
@@ -201,7 +206,7 @@ public final class BankTabStoragePlugin extends Plugin implements StorageActions
             try
             {
                 bankTags.setVisible(tab.getName(), false);
-                bankTags.refreshActiveTab(tab.getName(), true);
+                bankTags.refreshBank(tab.getName(), true);
             }
             finally
             {

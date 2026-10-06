@@ -12,10 +12,12 @@ public class BankTagsAccessTest
     public void closesAHiddenActiveTab()
     {
         FakeBankTagsService service = new FakeBankTagsService("slayer");
-        BankTagsAccess access = new BankTagsAccess(null, null, null, service);
+        FakeBankTabReloader reloader = new FakeBankTabReloader();
+        BankTagsAccess access = new BankTagsAccess(null, null, null, reloader, service);
 
-        access.refreshActiveTab("Slayer", true);
+        access.refreshBank("Slayer", true);
 
+        Assert.assertEquals(1, reloader.reloads);
         Assert.assertTrue(service.closed);
         Assert.assertNull(service.openedTag);
     }
@@ -24,10 +26,12 @@ public class BankTagsAccessTest
     public void refreshesAnActiveTabThroughThePublicService()
     {
         FakeBankTagsService service = new FakeBankTagsService("slayer");
-        BankTagsAccess access = new BankTagsAccess(null, null, null, service);
+        FakeBankTabReloader reloader = new FakeBankTabReloader();
+        BankTagsAccess access = new BankTagsAccess(null, null, null, reloader, service);
 
-        access.refreshActiveTab("slayer", false);
+        access.refreshBank("slayer", false);
 
+        Assert.assertEquals(1, reloader.reloads);
         Assert.assertFalse(service.closed);
         Assert.assertEquals("slayer", service.openedTag);
         Assert.assertEquals(BankTagsService.OPTION_ALLOW_MODIFICATIONS, service.openedOptions);
@@ -37,12 +41,25 @@ public class BankTagsAccessTest
     public void leavesAnUnrelatedActiveTabAlone()
     {
         FakeBankTagsService service = new FakeBankTagsService("slayer");
-        BankTagsAccess access = new BankTagsAccess(null, null, null, service);
+        FakeBankTabReloader reloader = new FakeBankTabReloader();
+        BankTagsAccess access = new BankTagsAccess(null, null, null, reloader, service);
 
-        access.refreshActiveTab("herblore", false);
+        access.refreshBank("herblore", false);
 
+        Assert.assertEquals(1, reloader.reloads);
         Assert.assertFalse(service.closed);
         Assert.assertNull(service.openedTag);
+    }
+
+    private static final class FakeBankTabReloader implements BankTabReloader
+    {
+        private int reloads;
+
+        @Override
+        public void reload()
+        {
+            reloads++;
+        }
     }
 
     private static final class FakeBankTagsService implements BankTagsService
