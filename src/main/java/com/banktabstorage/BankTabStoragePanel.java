@@ -32,6 +32,7 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.DropMode;
+import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
@@ -54,6 +55,7 @@ import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.util.AsyncBufferedImage;
+import net.runelite.client.util.ImageUtil;
 
 final class BankTabStoragePanel extends PluginPanel
 {
@@ -132,7 +134,7 @@ final class BankTabStoragePanel extends PluginPanel
         this.actions = actions;
         this.imageProvider = imageProvider;
         setLayout(new BorderLayout(0, 7));
-        setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+        setBorder(BorderFactory.createEmptyBorder(5, 8, 8, 8));
         setBackground(BACKGROUND);
         setFont(BODY_FONT);
 
@@ -142,11 +144,28 @@ final class BankTabStoragePanel extends PluginPanel
         JPanel heading = new JPanel(new BorderLayout(4, 0));
         heading.setOpaque(false);
         heading.setAlignmentX(Component.LEFT_ALIGNMENT);
-        heading.setMaximumSize(new Dimension(Integer.MAX_VALUE, 22));
+        heading.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        JPanel branding = new JPanel(new BorderLayout(7, 0));
+        branding.setOpaque(false);
+        JLabel icon = new JLabel(new ImageIcon(ImageUtil.resizeImage(
+            ImageUtil.loadImageResource(BankTabStoragePanel.class, "header-icon.png"), 28, 28)));
+        icon.getAccessibleContext().setAccessibleName("Bank Tab Storage icon");
+        branding.add(icon, BorderLayout.WEST);
+        JPanel titleGroup = new JPanel();
+        titleGroup.setLayout(new BoxLayout(titleGroup, BoxLayout.Y_AXIS));
+        titleGroup.setOpaque(false);
         JLabel title = new JLabel("Bank Tab Storage");
         title.setForeground(Color.WHITE);
         title.setFont(NAME_FONT.deriveFont(14f));
-        heading.add(title, BorderLayout.CENTER);
+        title.setAlignmentX(Component.LEFT_ALIGNMENT);
+        titleGroup.add(title);
+        JLabel author = new JLabel("by TimoklDev");
+        author.setForeground(MUTED);
+        author.setFont(DETAIL_FONT.deriveFont(10f));
+        author.setAlignmentX(Component.LEFT_ALIGNMENT);
+        titleGroup.add(author);
+        branding.add(titleGroup, BorderLayout.CENTER);
+        heading.add(branding, BorderLayout.CENTER);
         JButton menuButton = button("\u22EE", MUTED);
         menuButton.setFont(NAME_FONT.deriveFont(17f));
         menuButton.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 4));
