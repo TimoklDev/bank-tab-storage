@@ -11,6 +11,8 @@ import java.awt.Graphics2D;
 import java.awt.GraphicsEnvironment;
 import java.awt.GridLayout;
 import java.awt.Insets;
+import java.awt.Point;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Toolkit;
 import java.awt.datatransfer.DataFlavor;
@@ -39,7 +41,6 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JTree;
-import javax.swing.JTextArea;
 import javax.swing.SwingUtilities;
 import javax.swing.ToolTipManager;
 import javax.swing.TransferHandler;
@@ -57,19 +58,18 @@ import net.runelite.client.util.AsyncBufferedImage;
 final class BankTabStoragePanel extends PluginPanel
 {
     private static final Color BACKGROUND = new Color(40, 40, 40);
-    private static final Color SURFACE = new Color(53, 53, 53);
-    private static final Color SELECTED = new Color(72, 72, 72);
-    private static final Color BUTTON = new Color(68, 68, 68);
+    private static final Color SURFACE = new Color(48, 48, 48);
+    private static final Color SELECTED = new Color(65, 65, 60);
+    private static final Color BUTTON = new Color(57, 57, 57);
     private static final Color GOLD = new Color(214, 180, 92);
     private static final Color GREEN = new Color(122, 184, 111);
     private static final Color MUTED = new Color(190, 190, 190);
-    private static final Color DANGER = new Color(225, 121, 111);
     private static final Font BODY_FONT = new Font(Font.DIALOG, Font.PLAIN, 12);
     private static final Font NAME_FONT = new Font(Font.DIALOG, Font.BOLD, 13);
     private static final Font DETAIL_FONT = new Font(Font.DIALOG, Font.PLAIN, 11);
     private final StorageActions actions;
     private final IntFunction<BufferedImage> imageProvider;
-    private final DefaultMutableTreeNode root = new DefaultMutableTreeNode("All saved tabs");
+    private final DefaultMutableTreeNode root = new DefaultMutableTreeNode();
     private final DefaultTreeModel treeModel = new DefaultTreeModel(root, true);
     private final JTree tree = new JTree(treeModel)
     {
@@ -91,14 +91,38 @@ final class BankTabStoragePanel extends PluginPanel
                 refreshRowSizes(root);
             }
         }
+
+        @Override
+        protected void paintComponent(Graphics graphics)
+        {
+            super.paintComponent(graphics);
+            Graphics2D painter = (Graphics2D) graphics.create();
+            painter.setFont(DETAIL_FONT);
+            painter.setColor(MUTED);
+            painter.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            if (root.getChildCount() == 0)
+            {
+                painter.drawString("No saved tabs yet", 8, 22);
+                painter.drawString("Save your current Bank Tags tabs.", 8, 40);
+            }
+            JTree.DropLocation drop = getDropLocation();
+            if (drop != null && isOutsideRows(drop.getDropPoint()))
+            {
+                Rectangle last = getRowCount() == 0 ? null : getRowBounds(getRowCount() - 1);
+                int y = last == null ? 6 : last.y + last.height + 5;
+                painter.setColor(GOLD);
+                painter.fillRect(2, y, Math.max(0, getWidth() - 4), 2);
+                painter.drawString("Move outside folders", 8, y + 17);
+            }
+            painter.dispose();
+        }
     };
     private final Map<Integer, BufferedImage> itemImages = new HashMap<>();
     private final Map<String, StoredBankTag> tabsByName = new HashMap<>();
     private final JLabel countLabel = new JLabel();
-    private final JTextArea noticeLabel = new JTextArea("Drag tabs into folders to organize them");
+    private final JLabel noticeLabel = new JLabel("Drag to organize. Right-click for more.");
     private final JButton loadButton;
     private final JButton toggleButton;
-    private final JButton removeButton;
     private StorageLayout storageLayout = StorageLayout.empty();
     private boolean updating;
 
@@ -107,49 +131,56 @@ final class BankTabStoragePanel extends PluginPanel
         super(false);
         this.actions = actions;
         this.imageProvider = imageProvider;
-        setLayout(new BorderLayout(0, 9));
-        setBorder(BorderFactory.createEmptyBorder(10, 8, 10, 8));
+        setLayout(new BorderLayout(0, 7));
+        setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
         setBackground(BACKGROUND);
         setFont(BODY_FONT);
 
         JPanel header = new JPanel();
         header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
         header.setOpaque(false);
+        JPanel heading = new JPanel(new BorderLayout(4, 0));
+        heading.setOpaque(false);
+        heading.setAlignmentX(Component.LEFT_ALIGNMENT);
+        heading.setMaximumSize(new Dimension(Integer.MAX_VALUE, 22));
         JLabel title = new JLabel("Bank Tab Storage");
         title.setForeground(Color.WHITE);
-        title.setFont(NAME_FONT.deriveFont(15f));
-        title.setAlignmentX(Component.LEFT_ALIGNMENT);
-        header.add(title);
-        header.add(Box.createVerticalStrut(7));
+        title.setFont(NAME_FONT.deriveFont(14f));
+        heading.add(title, BorderLayout.CENTER);
+        JButton menuButton = button("\u22EE", MUTED);
+        menuButton.setFont(NAME_FONT.deriveFont(17f));
+        menuButton.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 4));
+        menuButton.setContentAreaFilled(false);
+        menuButton.setToolTipText("Import and export");
+        menuButton.getAccessibleContext().setAccessibleName("Import and export menu");
+        menuButton.addActionListener(event ->
+        {
+            JPopupMenu menu = new JPopupMenu();
+            addMenuItem(menu, "Import tabs and folders", this::importFromClipboard);
+            addMenuItem(menu, "Export all", this::exportToClipboard);
+            menu.show(menuButton, 0, menuButton.getHeight());
+        });
+        heading.add(menuButton, BorderLayout.EAST);
+        header.add(heading);
+        header.add(Box.createVerticalStrut(3));
         countLabel.setForeground(MUTED);
         countLabel.setFont(DETAIL_FONT);
         countLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         header.add(countLabel);
-        header.add(Box.createVerticalStrut(9));
+        header.add(Box.createVerticalStrut(7));
 
-        JButton saveButton = button("Save current tabs", GOLD);
-        saveButton.setAlignmentX(Component.LEFT_ALIGNMENT);
-        saveButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
+        JPanel toolbar = new JPanel(new GridLayout(1, 2, 5, 0));
+        toolbar.setOpaque(false);
+        toolbar.setAlignmentX(Component.LEFT_ALIGNMENT);
+        toolbar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 27));
+        JButton saveButton = button("Save tabs", GOLD);
+        saveButton.setToolTipText("Save or update every currently visible Bank Tags tab");
         saveButton.addActionListener(event -> actions.saveCurrentTabs());
-        header.add(saveButton);
-        header.add(Box.createVerticalStrut(5));
-        JPanel transfers = new JPanel(new GridLayout(1, 2, 5, 0));
-        transfers.setOpaque(false);
-        transfers.setAlignmentX(Component.LEFT_ALIGNMENT);
-        transfers.setMaximumSize(new Dimension(Integer.MAX_VALUE, 27));
-        JButton importButton = button("Import", Color.WHITE);
-        importButton.addActionListener(event -> importFromClipboard());
-        transfers.add(importButton);
-        JButton exportButton = button("Export all", Color.WHITE);
-        exportButton.addActionListener(event -> exportToClipboard());
-        transfers.add(exportButton);
-        header.add(transfers);
-        header.add(Box.createVerticalStrut(5));
-        JButton folderButton = button("+ New folder", Color.WHITE);
-        folderButton.setAlignmentX(Component.LEFT_ALIGNMENT);
-        folderButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
-        folderButton.addActionListener(event -> createFolder());
-        header.add(folderButton);
+        toolbar.add(saveButton);
+        JButton folderButton = button("New folder", Color.WHITE);
+        folderButton.addActionListener(event -> createFolder(null));
+        toolbar.add(folderButton);
+        header.add(toolbar);
         add(header, BorderLayout.NORTH);
 
         configureTree();
@@ -159,9 +190,9 @@ final class BankTabStoragePanel extends PluginPanel
         scrollPane.getViewport().setBackground(BACKGROUND);
         add(scrollPane, BorderLayout.CENTER);
 
-        JPanel footer = new JPanel(new BorderLayout(0, 7));
+        JPanel footer = new JPanel(new BorderLayout(0, 5));
         footer.setOpaque(false);
-        JPanel selectedActions = new JPanel(new GridLayout(1, 3, 4, 0));
+        JPanel selectedActions = new JPanel(new GridLayout(1, 2, 5, 0));
         selectedActions.setOpaque(false);
         loadButton = button("Load", Color.WHITE);
         loadButton.addActionListener(event -> primarySelected());
@@ -169,18 +200,10 @@ final class BankTabStoragePanel extends PluginPanel
         toggleButton = button("Show", GREEN);
         toggleButton.addActionListener(event -> secondarySelected());
         selectedActions.add(toggleButton);
-        removeButton = button("Remove", DANGER);
-        removeButton.addActionListener(event -> removeSelected());
-        selectedActions.add(removeButton);
         footer.add(selectedActions, BorderLayout.NORTH);
         noticeLabel.setForeground(MUTED);
         noticeLabel.setFont(DETAIL_FONT);
-        noticeLabel.setOpaque(false);
-        noticeLabel.setEditable(false);
-        noticeLabel.setFocusable(false);
-        noticeLabel.setLineWrap(true);
-        noticeLabel.setWrapStyleWord(true);
-        noticeLabel.setRows(2);
+        noticeLabel.setPreferredSize(new Dimension(180, 16));
         footer.add(noticeLabel, BorderLayout.SOUTH);
         add(footer, BorderLayout.SOUTH);
         updateSelection();
@@ -281,7 +304,7 @@ final class BankTabStoragePanel extends PluginPanel
         tree.setFont(BODY_FONT);
         tree.setBackground(BACKGROUND);
         tree.setForeground(Color.WHITE);
-        tree.setRootVisible(true);
+        tree.setRootVisible(false);
         tree.setShowsRootHandles(true);
         tree.setRowHeight(0);
         tree.setToggleClickCount(2);
@@ -397,7 +420,10 @@ final class BankTabStoragePanel extends PluginPanel
         button.setFocusPainted(false);
         button.setBackground(BUTTON);
         button.setForeground(foreground);
-        button.setMargin(new Insets(4, 3, 4, 3));
+        button.setMargin(new Insets(3, 4, 3, 4));
+        button.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(73, 73, 73)),
+            BorderFactory.createEmptyBorder(4, 5, 4, 5)));
         return button;
     }
 
@@ -416,10 +442,60 @@ final class BankTabStoragePanel extends PluginPanel
     {
         StoredStorageEntry selected = selectedEntry();
         String parentId = selected == null ? null : selected.isFolder() ? selected.getId() : selected.getParentId();
+        createFolder(parentId);
+    }
+
+    private void createFolder(String parentId)
+    {
         String name = JOptionPane.showInputDialog(this, "Folder name", "New folder", JOptionPane.PLAIN_MESSAGE);
         if (name != null)
         {
             actions.createFolder(name, parentId);
+        }
+    }
+
+    private boolean isOutsideRows(Point point)
+    {
+        Rectangle last = tree.getRowCount() == 0 ? null : tree.getRowBounds(tree.getRowCount() - 1);
+        return last == null || point.y >= last.y + last.height;
+    }
+
+    private StorageDropTarget dropTarget(TreePath path, int childIndex, Point point)
+    {
+        if (path == null || isOutsideRows(point))
+        {
+            return new StorageDropTarget(null, -1);
+        }
+        DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
+        if (!node.getAllowsChildren())
+        {
+            return null;
+        }
+        StoredStorageEntry entry = node.getUserObject() instanceof StoredStorageEntry
+            ? (StoredStorageEntry) node.getUserObject() : null;
+        return new StorageDropTarget(entry == null ? null : entry.getId(), childIndex);
+    }
+
+    boolean moveEntryToDrop(String id, TreePath path, int childIndex, Point point)
+    {
+        StorageDropTarget target = dropTarget(path, childIndex, point);
+        if (target == null || !storageLayout.canMove(id, target.parentId))
+        {
+            return false;
+        }
+        actions.moveEntry(id, target.parentId, target.index);
+        return true;
+    }
+
+    private static final class StorageDropTarget
+    {
+        private final String parentId;
+        private final int index;
+
+        private StorageDropTarget(String parentId, int index)
+        {
+            this.parentId = parentId;
+            this.index = index;
         }
     }
 
@@ -513,6 +589,7 @@ final class BankTabStoragePanel extends PluginPanel
             {
                 addMenuItem(menu, "Move out of folder", () -> actions.moveEntry(entry.getId(),
                     storageLayout.find(entry.getParentId()).getParentId(), -1));
+                addMenuItem(menu, "Move to top level", () -> actions.moveEntry(entry.getId(), null, -1));
             }
             menu.addSeparator();
             addMenuItem(menu, entry.isFolder() ? "Remove folder" : "Remove saved tab", this::removeSelected);
@@ -586,7 +663,6 @@ final class BankTabStoragePanel extends PluginPanel
         StoredStorageEntry entry = selectedEntry();
         loadButton.setEnabled(entry != null);
         toggleButton.setEnabled(entry != null);
-        removeButton.setEnabled(entry != null);
         boolean folder = entry != null && entry.isFolder();
         loadButton.setText(folder ? "Icon" : "Load");
         StoredBankTag tab = entry == null || folder ? null : tabsByName.get(entry.getName());
@@ -597,7 +673,7 @@ final class BankTabStoragePanel extends PluginPanel
     private void updateCount()
     {
         long visible = tabsByName.values().stream().filter(StoredBankTag::isEnabled).count();
-        countLabel.setText(tabsByName.size() + " saved tabs  |  " + visible + " visible in bank");
+        countLabel.setText(tabsByName.size() + " saved, " + visible + " in bank");
     }
 
     private BufferedImage itemImage(int itemId)
@@ -635,10 +711,12 @@ final class BankTabStoragePanel extends PluginPanel
             this.entry = node.getUserObject() instanceof StoredStorageEntry
                 ? (StoredStorageEntry) node.getUserObject() : null;
             this.selected = selected;
-            int width = Math.max(90, tree.getWidth() - 20 - node.getLevel() * 15);
-            setPreferredSize(new Dimension(width, entry == null ? 30 : 60));
-            setToolTipText(entry == null ? "Drop here to move a tab or folder to the top level"
-                : entry.getName() + (entry.isFolder() ? " | Drop tabs here. Right-click for folder actions." : ""));
+            int width = Math.max(90, tree.getWidth() - 5 - node.getLevel() * 15);
+            setPreferredSize(new Dimension(width, entry == null ? 0 : entry.isFolder() ? 44 : 48));
+            StoredBankTag tab = entry == null || entry.isFolder() ? null : tabsByName.get(entry.getName());
+            setToolTipText(entry == null ? null : entry.getName()
+                + (entry.isFolder() ? " | Drop tabs here. Right-click for folder actions."
+                    : tab != null && tab.isEnabled() ? " | Visible in bank" : " | Hidden from bank"));
             return this;
         }
 
@@ -652,42 +730,57 @@ final class BankTabStoragePanel extends PluginPanel
             painter.fillRect(0, 0, getWidth(), getHeight());
             if (entry == null)
             {
-                painter.setFont(DETAIL_FONT);
-                painter.setColor(selected ? GOLD : MUTED);
-                painter.drawString("All saved tabs", 3, 19);
                 painter.dispose();
                 return;
             }
-            painter.setColor(selected ? SELECTED : SURFACE);
-            painter.fillRect(0, 0, getWidth(), getHeight() - 4);
-            StoredBankTag tab = entry.isFolder() ? null : tabsByName.get(entry.getName());
-            if (entry.isFolder() || tab != null && tab.isEnabled())
+            if (selected || entry.isFolder())
             {
-                painter.setColor(entry.isFolder() ? GOLD : GREEN);
-                painter.fillRect(0, 0, 2, getHeight() - 4);
+                painter.setColor(selected ? SELECTED : SURFACE);
+                painter.fillRoundRect(0, 0, getWidth(), getHeight() - 2, 4, 4);
+            }
+            StoredBankTag tab = entry.isFolder() ? null : tabsByName.get(entry.getName());
+            if (selected)
+            {
+                painter.setColor(GOLD);
+                painter.fillRect(0, 5, 2, getHeight() - 12);
             }
             BufferedImage image = itemImage(entry.isFolder() ? entry.getIconItemId() : tab.getIconItemId());
             if (image != null)
             {
-                painter.drawImage(image, 7, 12, null);
+                painter.drawImage(image, 5, (getHeight() - 2 - image.getHeight()) / 2, null);
             }
             else if (entry.isFolder())
             {
                 painter.setColor(GOLD);
-                painter.fillRoundRect(10, 19, 26, 20, 3, 3);
-                painter.fillRoundRect(10, 15, 12, 7, 3, 3);
+                painter.fillRoundRect(9, 16, 25, 17, 3, 3);
+                painter.fillRoundRect(9, 12, 11, 7, 3, 3);
                 painter.setColor(new Color(170, 140, 67));
-                painter.drawLine(11, 23, 34, 23);
+                painter.drawLine(10, 19, 32, 19);
             }
-            painter.setFont(NAME_FONT);
+            int nameY = getHeight() / 2 - 4;
+            int detailY = getHeight() / 2 + 12;
+            painter.setFont(entry.isFolder() ? NAME_FONT : NAME_FONT.deriveFont(Font.PLAIN));
             painter.setColor(Color.WHITE);
-            painter.drawString(clipText(entry.getName(), painter.getFontMetrics(), getWidth() - 56), 49, 24);
+            painter.drawString(clipText(entry.getName(), painter.getFontMetrics(), getWidth() - 54), 46, nameY);
             painter.setFont(DETAIL_FONT);
             painter.setColor(MUTED);
-            String details = entry.isFolder() ? folderDetails(entry.getId())
-                : tab.getItemCount() + (tab.getItemCount() == 1 ? " item" : " items")
-                    + "  |  " + (tab.isEnabled() ? "Showing" : "Hidden");
-            painter.drawString(clipText(details, painter.getFontMetrics(), getWidth() - 56), 49, 43);
+            if (entry.isFolder())
+            {
+                painter.drawString(clipText(folderDetails(entry.getId()), painter.getFontMetrics(), getWidth() - 54),
+                    46, detailY);
+            }
+            else
+            {
+                String state = tab.isEnabled() ? "Visible" : "Hidden";
+                int stateWidth = painter.getFontMetrics().stringWidth(state);
+                String details = tab.getItemCount() + (tab.getItemCount() == 1 ? " item" : " items");
+                painter.drawString(clipText(details, painter.getFontMetrics(), getWidth() - 62 - stateWidth),
+                    46, detailY);
+                painter.setColor(tab.isEnabled() ? GREEN : MUTED);
+                painter.drawString(state, getWidth() - stateWidth - 8, detailY);
+                painter.setColor(new Color(51, 51, 51));
+                painter.drawLine(46, getHeight() - 1, getWidth() - 8, getHeight() - 1);
+            }
             JTree.DropLocation drop = tree.getDropLocation();
             if (drop != null && drop.getChildIndex() == -1 && drop.getPath() != null)
             {
@@ -695,7 +788,7 @@ final class BankTabStoragePanel extends PluginPanel
                 if (target instanceof StoredStorageEntry && entry.getId().equals(((StoredStorageEntry) target).getId()))
                 {
                     painter.setColor(GOLD);
-                    painter.drawRect(0, 0, getWidth() - 1, getHeight() - 5);
+                    painter.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 3, 4, 4);
                 }
             }
             painter.dispose();
@@ -788,21 +881,15 @@ final class BankTabStoragePanel extends PluginPanel
                 return false;
             }
             JTree.DropLocation location = (JTree.DropLocation) support.getDropLocation();
-            if (location.getPath() == null)
-            {
-                return false;
-            }
-            DefaultMutableTreeNode target = (DefaultMutableTreeNode) location.getPath().getLastPathComponent();
-            if (!target.getAllowsChildren())
+            StorageDropTarget target = dropTarget(location.getPath(), location.getChildIndex(), location.getDropPoint());
+            if (target == null)
             {
                 return false;
             }
             try
             {
                 EntryTransfer transfer = (EntryTransfer) support.getTransferable().getTransferData(EntryTransfer.FLAVOR);
-                StoredStorageEntry entry = target.getUserObject() instanceof StoredStorageEntry
-                    ? (StoredStorageEntry) target.getUserObject() : null;
-                return transfer.source == tree && storageLayout.canMove(transfer.id, entry == null ? null : entry.getId());
+                return transfer.source == tree && storageLayout.canMove(transfer.id, target.parentId);
             }
             catch (Exception exception)
             {
@@ -821,11 +908,7 @@ final class BankTabStoragePanel extends PluginPanel
             {
                 EntryTransfer transfer = (EntryTransfer) support.getTransferable().getTransferData(EntryTransfer.FLAVOR);
                 JTree.DropLocation location = (JTree.DropLocation) support.getDropLocation();
-                DefaultMutableTreeNode node = (DefaultMutableTreeNode) location.getPath().getLastPathComponent();
-                StoredStorageEntry parent = node.getUserObject() instanceof StoredStorageEntry
-                    ? (StoredStorageEntry) node.getUserObject() : null;
-                actions.moveEntry(transfer.id, parent == null ? null : parent.getId(), location.getChildIndex());
-                return true;
+                return moveEntryToDrop(transfer.id, location.getPath(), location.getChildIndex(), location.getDropPoint());
             }
             catch (Exception exception)
             {

@@ -4,6 +4,8 @@ import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Component;
 import java.awt.Font;
+import java.awt.Point;
+import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.List;
@@ -181,7 +183,8 @@ public class BankTabStoragePanelRenderTest
             tree.setSize(tree.getParent().getSize());
             tree.treeDidChange();
             Assert.assertEquals(Font.DIALOG, tree.getFont().getName());
-            Assert.assertEquals(7, tree.getRowCount());
+            Assert.assertFalse(tree.isRootVisible());
+            Assert.assertEquals(6, tree.getRowCount());
             for (int row = 0; row < tree.getRowCount(); row++)
             {
                 Object value = ((DefaultMutableTreeNode) tree.getPathForRow(row).getLastPathComponent()).getUserObject();
@@ -189,7 +192,7 @@ public class BankTabStoragePanelRenderTest
                 {
                     TreePath path = tree.getPathForRow(row);
                     tree.collapsePath(path);
-                    Assert.assertEquals(5, tree.getRowCount());
+                    Assert.assertEquals(4, tree.getRowCount());
                     tree.expandPath(path);
                     break;
                 }
@@ -203,6 +206,44 @@ public class BankTabStoragePanelRenderTest
         File output = new File("target/bank-tab-storage-folders-preview.png");
         output.getParentFile().mkdirs();
         ImageIO.write(rendered[0], "png", output);
+    }
+
+    @Test
+    public void droppingIntoEmptySpaceMovesAnItemToTheTopLevelWithoutARootRow() throws Exception
+    {
+        SwingUtilities.invokeAndWait(() ->
+        {
+            AtomicInteger moves = new AtomicInteger();
+            StoredStorageEntry folder = StoredStorageEntry.folder("Bossing", null);
+            List<StoredBankTag> tabs = List.of(
+                new StoredBankTag("zulrah", 4151, List.of(4151), null, false, false));
+            StorageLayout layout = StorageLayout.empty().reconcile(tabs).addFolder(folder)
+                .move("tab:zulrah", folder.getId(), -1);
+            BankTabStoragePanel panel = new BankTabStoragePanel(new NoOpActions()
+            {
+                @Override
+                public void moveEntry(String id, String parentId, int index)
+                {
+                    Assert.assertEquals("tab:zulrah", id);
+                    Assert.assertNull(parentId);
+                    Assert.assertEquals(-1, index);
+                    moves.incrementAndGet();
+                }
+            }, this::itemImage);
+            panel.setStorage(tabs, layout, "Drag to organize");
+            panel.setSize(242, 700);
+            layoutTree(panel);
+            JTree tree = findTree(panel);
+            Assert.assertFalse(tree.isRootVisible());
+            Rectangle lastRow = tree.getRowBounds(tree.getRowCount() - 1);
+            Point emptySpace = new Point(100, lastRow.y + lastRow.height + 20);
+            Assert.assertTrue(panel.moveEntryToDrop("tab:zulrah", tree.getPathForRow(0), -1, emptySpace));
+            Assert.assertTrue(panel.moveEntryToDrop("tab:zulrah", null, -1, emptySpace));
+            Rectangle folderRow = tree.getRowBounds(0);
+            Assert.assertFalse(panel.moveEntryToDrop(folder.getId(), tree.getPathForRow(0), -1,
+                new Point(folderRow.x + 40, folderRow.y + 20)));
+            Assert.assertEquals(2, moves.get());
+        });
     }
 
     private static JTree findTree(java.awt.Container parent)

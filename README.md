@@ -18,17 +18,17 @@ Bank Tab Storage adds a RuneLite side panel for keeping reusable snapshots of Ba
 
 ## Behavior
 
-`Save current tabs` updates snapshots for all visible Bank Tags tabs. Previously saved tabs that are hidden remain in storage.
+`Save tabs` updates snapshots for all visible Bank Tags tabs. Previously saved tabs that are hidden remain in storage. Import and export are available from the menu beside the panel title.
 
-`Load` replaces the matching live tag data with the saved snapshot and shows the tab. `Hide` removes only the tab from the bank sidebar. `Remove` deletes the saved snapshot and hides the tab, but leaves its live tagged items, icon, and layout untouched.
+`Load` replaces the matching live tag data with the saved snapshot and shows the tab. `Hide` removes only the tab from the bank sidebar. Right-click a saved tab and choose `Remove saved tab` to delete its snapshot and hide the tab while keeping its live tagged items, icon, and layout.
 
 Storage follows the active RuneLite profile because it is saved through RuneLite's configuration system.
 
 ## Folders and ordering
 
-Choose `New folder`, enter a name, then select the folder and choose `Icon` to search for an item in the game chatbox. You must be logged in to use the item search. Select a folder and choose `Rename` to change its name. Double-click a folder or click its expansion arrow to open or collapse it.
+Choose `New folder`, enter a name, then select the folder and choose `Icon` to search for an item in the game chatbox. You must be logged in to use the item search. Select a folder and choose `Rename` to change its name. Double-click a folder or click its expansion arrow to open or collapse it. To create a subfolder, right-click the parent folder and choose `New folder`.
 
-Drop a saved tab onto a folder to put it inside. Drop between rows to reorder tabs and folders. Drop onto `All saved tabs` to move something back to the top level. Folders can contain subfolders. Right-click an entry for additional actions, including moving it up, down, or out of its current folder. These changes organize the storage sidebar; they do not reorder the live bank sidebar.
+Drop a saved tab onto a folder to put it inside. Drop between rows to reorder tabs and folders. Drop into the empty space below the list to move something back to the top level, or right-click it and choose `Move to top level`. Folders can contain subfolders. Right-click an entry for additional actions, including moving it up, down, or out of its current folder. These changes organize the storage sidebar; they do not reorder the live bank sidebar.
 
 Removing a folder keeps its tabs and subfolders, moving them into the parent folder or the top level. Saving current tabs again updates their snapshots while keeping their folder placement and order.
 

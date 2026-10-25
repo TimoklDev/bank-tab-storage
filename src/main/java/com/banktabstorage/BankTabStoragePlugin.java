@@ -88,7 +88,7 @@ public final class BankTabStoragePlugin extends Plugin implements StorageActions
         SwingUtilities.invokeLater(() ->
         {
             panel = new BankTabStoragePanel(this, itemManager::getImage);
-            panel.setStorage(storedTabs, storageLayout, "Drag tabs into folders to organize them");
+            panel.setStorage(storedTabs, storageLayout, "Drag to organize. Right-click for more.");
             navigationButton = NavigationButton.builder()
                 .tooltip("Bank Tab Storage")
                 .icon(createNavigationIcon())
