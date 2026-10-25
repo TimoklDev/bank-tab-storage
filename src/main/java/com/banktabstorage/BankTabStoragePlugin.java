@@ -7,12 +7,14 @@ import java.util.List;
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
 import net.runelite.api.Client;
+import net.runelite.api.GameState;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.ProfileChanged;
 import net.runelite.client.game.ItemManager;
+import net.runelite.client.game.chatbox.ChatboxItemSearch;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDependency;
 import net.runelite.client.plugins.PluginDescriptor;
@@ -34,8 +36,10 @@ public final class BankTabStoragePlugin extends Plugin implements StorageActions
 {
     private static final String CONFIG_GROUP = "banktabstorage";
     private static final String LEGACY_CONFIG_GROUP = "banktagsstorage";
-    private static final String CONFIG_KEY = "savedTabs";
+    private static final String CONFIG_KEY = "savedStorageV2";
+    private static final String PREVIOUS_CONFIG_KEY = "savedTabs";
     private volatile List<StoredBankTag> storedTabs = List.of();
+    private volatile StorageLayout storageLayout = StorageLayout.empty();
     private volatile boolean changingBankTabs;
 
     @Inject
@@ -55,6 +59,9 @@ public final class BankTabStoragePlugin extends Plugin implements StorageActions
 
     @Inject
     private ItemManager itemManager;
+
+    @Inject
+    private ChatboxItemSearch itemSearch;
 
     @Inject
     private TagManager tagManager;
@@ -81,7 +88,7 @@ public final class BankTabStoragePlugin extends Plugin implements StorageActions
         SwingUtilities.invokeLater(() ->
         {
             panel = new BankTabStoragePanel(this, itemManager::getImage);
-            panel.setTabs(storedTabs, "Save the tabs you want to keep ready");
+            panel.setStorage(storedTabs, storageLayout, "Drag tabs into folders to organize them");
             navigationButton = NavigationButton.builder()
                 .tooltip("Bank Tab Storage")
                 .icon(createNavigationIcon())
@@ -107,6 +114,7 @@ public final class BankTabStoragePlugin extends Plugin implements StorageActions
         bankTags = null;
         codec = null;
         storedTabs = List.of();
+        storageLayout = StorageLayout.empty();
         changingBankTabs = false;
     }
 
@@ -221,10 +229,10 @@ public final class BankTabStoragePlugin extends Plugin implements StorageActions
     @Override
     public void importText(String text, boolean replace)
     {
-        List<StoredBankTag> imported;
+        BankTabStorageData imported;
         try
         {
-            imported = codec.decode(text);
+            imported = codec.decodeData(text);
         }
         catch (IllegalArgumentException exception)
         {
@@ -233,23 +241,117 @@ public final class BankTabStoragePlugin extends Plugin implements StorageActions
         }
         runOnClient(() ->
         {
-            storedTabs = immutable(StoredTabCollection.merge(storedTabs, imported, replace));
+            List<StoredBankTag> incomingTabs = imported.validatedTabs();
+            List<StoredBankTag> merged = immutable(StoredTabCollection.merge(storedTabs, incomingTabs, replace));
+            StorageLayout mergedLayout = storageLayout.merge(imported.validatedLayout(), merged, replace);
+            storedTabs = merged;
+            storageLayout = mergedLayout;
             storedTabs = immutable(StoredTabCollection.syncEnabled(storedTabs, bankTags.visibleNames()));
             persist();
-            publish("Imported " + imported.size() + (imported.size() == 1 ? " saved tab" : " saved tabs"));
+            publish("Imported " + incomingTabs.size() + (incomingTabs.size() == 1 ? " saved tab" : " saved tabs"));
         });
     }
 
     @Override
     public String exportText()
     {
-        return codec.encode(storedTabs);
+        return codec.encode(storedTabs, storageLayout);
+    }
+
+    @Override
+    public void createFolder(String name, String parentId)
+    {
+        runOnClient(() ->
+        {
+            StoredStorageEntry folder = StoredStorageEntry.folder(name, parentId);
+            storageLayout = storageLayout.addFolder(folder);
+            persist();
+            publish("Created '" + folder.getName() + "'. Select Icon to choose its item");
+        });
+    }
+
+    @Override
+    public void renameFolder(String id, String name)
+    {
+        runOnClient(() ->
+        {
+            storageLayout = storageLayout.updateFolder(id, folder -> folder.withName(name));
+            persist();
+            publish("Folder renamed");
+        });
+    }
+
+    @Override
+    public void chooseFolderIcon(String id)
+    {
+        runOnClient(() ->
+        {
+            if (client.getGameState() != GameState.LOGGED_IN)
+            {
+                throw new IllegalArgumentException("Log in to choose a folder icon using the item search");
+            }
+            storageLayout.find(id);
+            long profileId = configManager.getProfile().getId();
+            itemSearch.tooltipText("Use as folder icon")
+                .onItemSelected(itemId -> runOnClient(() ->
+                {
+                    if (configManager.getProfile().getId() == profileId)
+                    {
+                        storageLayout = storageLayout.updateFolder(id, folder -> folder.withIcon(itemId));
+                        persist();
+                        publish("Folder icon updated");
+                    }
+                }))
+                .value("")
+                .build();
+            publish("Choose an item in the chatbox for the folder icon");
+        });
+    }
+
+    @Override
+    public void removeFolder(String id)
+    {
+        runOnClient(() ->
+        {
+            storageLayout = storageLayout.removeFolder(id);
+            persist();
+            publish("Folder removed. Its contents have been kept");
+        });
+    }
+
+    @Override
+    public void setFolderExpanded(String id, boolean expanded)
+    {
+        runOnClient(() ->
+        {
+            storageLayout = storageLayout.updateFolder(id, folder -> folder.withExpanded(expanded));
+            persist();
+        });
+    }
+
+    @Override
+    public void moveEntry(String id, String parentId, int index)
+    {
+        runOnClient(() ->
+        {
+            storageLayout = storageLayout.move(id, parentId, index);
+            if (parentId != null)
+            {
+                storageLayout = storageLayout.updateFolder(parentId, folder -> folder.withExpanded(true));
+            }
+            persist();
+            publish("Storage order updated");
+        });
     }
 
     private void runOnClient(Runnable action)
     {
         clientThread.invokeLater(() ->
         {
+            if (bankTags == null || codec == null)
+            {
+                return;
+            }
             try
             {
                 action.run();
@@ -277,42 +379,51 @@ public final class BankTabStoragePlugin extends Plugin implements StorageActions
         boolean legacy = false;
         if (json == null || json.trim().isEmpty())
         {
-            json = configManager.getConfiguration(LEGACY_CONFIG_GROUP, CONFIG_KEY);
+            json = configManager.getConfiguration(CONFIG_GROUP, PREVIOUS_CONFIG_KEY);
+            if (json == null || json.trim().isEmpty())
+            {
+                json = configManager.getConfiguration(LEGACY_CONFIG_GROUP, PREVIOUS_CONFIG_KEY);
+            }
             legacy = json != null && !json.trim().isEmpty();
         }
         if (json == null || json.trim().isEmpty())
         {
             storedTabs = List.of();
+            storageLayout = StorageLayout.empty();
             return;
         }
         try
         {
-            storedTabs = immutable(codec.decode(json));
+            BankTabStorageData data = codec.decodeData(json);
+            storedTabs = immutable(data.validatedTabs());
+            storageLayout = data.validatedLayout();
             if (legacy)
             {
                 persist();
-                configManager.unsetConfiguration(LEGACY_CONFIG_GROUP, CONFIG_KEY);
             }
         }
         catch (IllegalArgumentException exception)
         {
             storedTabs = List.of();
+            storageLayout = StorageLayout.empty();
         }
     }
 
     private void persist()
     {
-        configManager.setConfiguration(CONFIG_GROUP, CONFIG_KEY, codec.encode(storedTabs));
+        storageLayout = storageLayout.reconcile(storedTabs);
+        configManager.setConfiguration(CONFIG_GROUP, CONFIG_KEY, codec.encode(storedTabs, storageLayout));
     }
 
     private void publish(String notice)
     {
         List<StoredBankTag> snapshot = immutable(storedTabs);
+        StorageLayout layoutSnapshot = storageLayout;
         SwingUtilities.invokeLater(() ->
         {
             if (panel != null)
             {
-                panel.setTabs(snapshot, notice);
+                panel.setStorage(snapshot, layoutSnapshot, notice);
             }
         });
     }

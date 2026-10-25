@@ -21,10 +21,20 @@ final class BankTabStorageCodec
 
     String encode(List<StoredBankTag> tabs)
     {
-        return gson.toJson(new BankTabStorageData(tabs));
+        return encode(tabs, StorageLayout.empty());
+    }
+
+    String encode(List<StoredBankTag> tabs, StorageLayout layout)
+    {
+        return gson.toJson(new BankTabStorageData(tabs, layout));
     }
 
     List<StoredBankTag> decode(String text)
+    {
+        return decodeData(text).validatedTabs();
+    }
+
+    BankTabStorageData decodeData(String text)
     {
         if (text == null || text.trim().isEmpty())
         {
@@ -37,7 +47,7 @@ final class BankTabStorageCodec
         }
         if (normalized.startsWith("banktags,"))
         {
-            return List.of(decodeRuneLiteTab(normalized));
+            return new BankTabStorageData(List.of(decodeRuneLiteTab(normalized)));
         }
         try
         {
@@ -47,7 +57,7 @@ final class BankTabStorageCodec
                 throw new IllegalArgumentException("The clipboard does not contain Bank Tab Storage data");
             }
             BankTabStorageData data = gson.fromJson(root, BankTabStorageData.class);
-            return data.validatedTabs();
+            return new BankTabStorageData(data.validatedTabs(), data.validatedLayout());
         }
         catch (IllegalArgumentException exception)
         {
