@@ -59,9 +59,9 @@ final class BankTabStoragePanel extends PluginPanel
 {
     private static final Color BACKGROUND = new Color(40, 40, 40);
     private static final Color SURFACE = new Color(48, 48, 48);
-    private static final Color SELECTED = new Color(65, 65, 60);
+    private static final Color SELECTED = new Color(69, 56, 47);
     private static final Color BUTTON = new Color(57, 57, 57);
-    private static final Color GOLD = new Color(214, 180, 92);
+    private static final Color ACCENT = new Color(242, 138, 58);
     private static final Color GREEN = new Color(122, 184, 111);
     private static final Color MUTED = new Color(190, 190, 190);
     private static final Font BODY_FONT = new Font(Font.DIALOG, Font.PLAIN, 12);
@@ -110,7 +110,7 @@ final class BankTabStoragePanel extends PluginPanel
             {
                 Rectangle last = getRowCount() == 0 ? null : getRowBounds(getRowCount() - 1);
                 int y = last == null ? 6 : last.y + last.height + 5;
-                painter.setColor(GOLD);
+                painter.setColor(ACCENT);
                 painter.fillRect(2, y, Math.max(0, getWidth() - 4), 2);
                 painter.drawString("Move outside folders", 8, y + 17);
             }
@@ -173,7 +173,7 @@ final class BankTabStoragePanel extends PluginPanel
         toolbar.setOpaque(false);
         toolbar.setAlignmentX(Component.LEFT_ALIGNMENT);
         toolbar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 27));
-        JButton saveButton = button("Save tabs", GOLD);
+        JButton saveButton = button("Save tabs", ACCENT);
         saveButton.setToolTipText("Save or update every currently visible Bank Tags tab");
         saveButton.addActionListener(event -> actions.saveCurrentTabs());
         toolbar.add(saveButton);
@@ -667,7 +667,7 @@ final class BankTabStoragePanel extends PluginPanel
         loadButton.setText(folder ? "Icon" : "Load");
         StoredBankTag tab = entry == null || folder ? null : tabsByName.get(entry.getName());
         toggleButton.setText(folder ? "Rename" : tab != null && tab.isEnabled() ? "Hide" : "Show");
-        toggleButton.setForeground(folder ? Color.WHITE : tab != null && tab.isEnabled() ? GOLD : GREEN);
+        toggleButton.setForeground(folder ? Color.WHITE : tab != null && tab.isEnabled() ? ACCENT : GREEN);
     }
 
     private void updateCount()
@@ -741,7 +741,7 @@ final class BankTabStoragePanel extends PluginPanel
             StoredBankTag tab = entry.isFolder() ? null : tabsByName.get(entry.getName());
             if (selected)
             {
-                painter.setColor(GOLD);
+                painter.setColor(ACCENT);
                 painter.fillRect(0, 5, 2, getHeight() - 12);
             }
             BufferedImage image = itemImage(entry.isFolder() ? entry.getIconItemId() : tab.getIconItemId());
@@ -751,10 +751,10 @@ final class BankTabStoragePanel extends PluginPanel
             }
             else if (entry.isFolder())
             {
-                painter.setColor(GOLD);
+                painter.setColor(ACCENT);
                 painter.fillRoundRect(9, 16, 25, 17, 3, 3);
                 painter.fillRoundRect(9, 12, 11, 7, 3, 3);
-                painter.setColor(new Color(170, 140, 67));
+                painter.setColor(new Color(184, 98, 39));
                 painter.drawLine(10, 19, 32, 19);
             }
             int nameY = getHeight() / 2 - 4;
@@ -787,7 +787,7 @@ final class BankTabStoragePanel extends PluginPanel
                 Object target = ((DefaultMutableTreeNode) drop.getPath().getLastPathComponent()).getUserObject();
                 if (target instanceof StoredStorageEntry && entry.getId().equals(((StoredStorageEntry) target).getId()))
                 {
-                    painter.setColor(GOLD);
+                    painter.setColor(ACCENT);
                     painter.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 3, 4, 4);
                 }
             }
