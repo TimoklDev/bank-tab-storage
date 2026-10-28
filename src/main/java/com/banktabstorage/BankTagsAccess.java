@@ -55,6 +55,50 @@ final class BankTagsAccess
         return new ArrayList<>(names);
     }
 
+    List<StoredBankTag> captureKnownTabs()
+    {
+        Set<String> names = new LinkedHashSet<>(visibleNames());
+        for (String prefix : List.of(BankTagsPlugin.TAG_ICON_PREFIX, BankTagsPlugin.TAG_LAYOUT_PREFIX))
+        {
+            String fullPrefix = BankTagsPlugin.CONFIG_GROUP + "." + prefix;
+            for (String key : configManager.getConfigurationKeys(fullPrefix))
+            {
+                addName(names, key.substring(fullPrefix.length()));
+            }
+        }
+        String itemPrefix = BankTagsPlugin.CONFIG_GROUP + ".item_";
+        for (String key : configManager.getConfigurationKeys(itemPrefix))
+        {
+            String value = configManager.getConfiguration(BankTagsPlugin.CONFIG_GROUP,
+                key.substring(BankTagsPlugin.CONFIG_GROUP.length() + 1));
+            if (value != null)
+            {
+                for (String name : Text.fromCSV(value))
+                {
+                    addName(names, name);
+                }
+            }
+        }
+        List<StoredBankTag> tabs = new ArrayList<>();
+        for (String name : names)
+        {
+            tabs.add(capture(name));
+        }
+        return tabs;
+    }
+
+    private void addName(Set<String> names, String value)
+    {
+        if (value != null && !value.trim().isEmpty())
+        {
+            String name = StoredBankTag.normalizeName(value);
+            if (!"tagtabs".equals(name))
+            {
+                names.add(name);
+            }
+        }
+    }
+
     void applySnapshot(StoredBankTag source)
     {
         StoredBankTag tab = source.validatedCopy();
@@ -106,12 +150,11 @@ final class BankTagsAccess
     {
         String activeTag = bankTagsService.getActiveTag();
         tabReloader.reload();
-        if (activeTag == null
-            || !StoredBankTag.normalizeName(activeTag).equals(StoredBankTag.normalizeName(changedTab)))
+        if (activeTag == null)
         {
             return;
         }
-        if (close)
+        if (close && StoredBankTag.normalizeName(activeTag).equals(StoredBankTag.normalizeName(changedTab)))
         {
             bankTagsService.closeBankTag();
             return;
@@ -119,7 +162,17 @@ final class BankTagsAccess
         bankTagsService.openBankTag(activeTag, BankTagsService.OPTION_ALLOW_MODIFICATIONS);
     }
 
-    private StoredBankTag capture(String value)
+    void refreshBank()
+    {
+        String activeTag = bankTagsService.getActiveTag();
+        tabReloader.reload();
+        if (activeTag != null)
+        {
+            bankTagsService.openBankTag(activeTag, BankTagsService.OPTION_ALLOW_MODIFICATIONS);
+        }
+    }
+
+    StoredBankTag capture(String value)
     {
         String name = StoredBankTag.normalizeName(value);
         int iconItemId = readIconItemId(name);
@@ -135,7 +188,7 @@ final class BankTagsAccess
             }
         }
         return new StoredBankTag(name, iconItemId, items, layoutValues,
-            tagManager.isHidden(name), true).validatedCopy();
+            tagManager.isHidden(name), visibleNames().contains(name)).validatedCopy();
     }
 
     private int readIconItemId(String name)

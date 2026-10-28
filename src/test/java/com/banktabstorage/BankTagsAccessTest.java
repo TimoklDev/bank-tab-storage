@@ -38,7 +38,7 @@ public class BankTagsAccessTest
     }
 
     @Test
-    public void leavesAnUnrelatedActiveTabAlone()
+    public void restoresAnUnrelatedActiveTabAfterReloadingTheBank()
     {
         FakeBankTagsService service = new FakeBankTagsService("slayer");
         FakeBankTabReloader reloader = new FakeBankTabReloader();
@@ -48,7 +48,7 @@ public class BankTagsAccessTest
 
         Assert.assertEquals(1, reloader.reloads);
         Assert.assertFalse(service.closed);
-        Assert.assertNull(service.openedTag);
+        Assert.assertEquals("slayer", service.openedTag);
     }
 
     private static final class FakeBankTabReloader implements BankTabReloader

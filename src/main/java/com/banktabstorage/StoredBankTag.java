@@ -94,7 +94,27 @@ final class StoredBankTag
 
     int getItemCount()
     {
-        return itemIds.size();
+        return getAllItemIds().size();
+    }
+
+    Set<Integer> getAllItemIds()
+    {
+        Set<Integer> result = new LinkedHashSet<>();
+        for (int itemId : itemIds)
+        {
+            result.add(Math.abs(itemId));
+        }
+        if (layout != null)
+        {
+            for (int itemId : layout)
+            {
+                if (itemId >= 0)
+                {
+                    result.add(itemId);
+                }
+            }
+        }
+        return result;
     }
 
     static String normalizeName(String value)

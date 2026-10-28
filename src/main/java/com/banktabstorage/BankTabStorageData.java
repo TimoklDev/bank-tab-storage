@@ -37,7 +37,7 @@ final class BankTabStorageData
     {
         if ((!KIND.equals(kind) && !LEGACY_KIND.equals(kind)) || (version != 1 && version != VERSION))
         {
-            throw new IllegalArgumentException("The clipboard does not contain a supported Bank Tab Storage export");
+            throw new IllegalArgumentException("The clipboard does not contain a supported Bank Tab Manager export");
         }
         return copyTabs(tabs);
     }

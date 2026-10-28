@@ -10,10 +10,15 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.imageio.ImageIO;
 import javax.swing.SwingUtilities;
 import javax.swing.JTree;
 import javax.swing.JFrame;
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JList;
+import javax.swing.JTextField;
 import javax.swing.UIManager;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreePath;
@@ -31,7 +36,7 @@ public class BankTabStoragePanelRenderTest
             List<StoredBankTag> tabs = List.of(
                 new StoredBankTag("general gear tab", 4151, List.of(4151), null, false, true),
                 new StoredBankTag("zulrah", 12924, List.of(12924), null, false, false),
-                new StoredBankTag("muspah", 27690, List.of(27690), null, false, true),
+                new StoredBankTag("muspah", 27690, List.of(), List.of(27690, -1, 4151, 11840, 27690), false, true),
                 new StoredBankTag("fishing", 301, List.of(301), null, false, false));
             StoredStorageEntry folder = StoredStorageEntry.folder("Bossing", null);
             StoredStorageEntry skilling = StoredStorageEntry.folder("Skilling", null);
@@ -86,7 +91,7 @@ public class BankTabStoragePanelRenderTest
             };
             panel[0] = new BankTabStoragePanel(actions, new BankTabStoragePanelRenderTest()::itemImage);
             panel[0].setStorage(tabs, layout[0], "Preview only. No RuneLite profile data is changed.");
-            JFrame frame = new JFrame("Bank Tab Storage folder preview");
+            JFrame frame = new JFrame("Bank Tab Manager folder preview");
             frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
             frame.setContentPane(panel[0]);
             frame.setSize(258, 800);
@@ -203,7 +208,7 @@ public class BankTabStoragePanelRenderTest
             graphics.dispose();
         });
         Assert.assertEquals(1, collapseActions.get());
-        File output = new File("target/bank-tab-storage-folders-preview.png");
+        File output = new File("target/bank-tab-manager-preview.png");
         output.getParentFile().mkdirs();
         ImageIO.write(rendered[0], "png", output);
     }
@@ -244,6 +249,160 @@ public class BankTabStoragePanelRenderTest
                 new Point(folderRow.x + 40, folderRow.y + 20)));
             Assert.assertEquals(2, moves.get());
         });
+    }
+
+    @Test
+    public void replacementSearchRequiresTabSelectionAndReviewBeforeApplying() throws Exception
+    {
+        AtomicInteger writes = new AtomicInteger();
+        AtomicReference<List<String>> selection = new AtomicReference<>();
+        BufferedImage[] rendered = new BufferedImage[1];
+        SwingUtilities.invokeAndWait(() ->
+        {
+            RuneLiteLAF.setup();
+            ItemReplacementPanel[] view = new ItemReplacementPanel[1];
+            ReplacementItem whip = new ReplacementItem(4151, "Abyssal whip");
+            ReplacementItem fang = new ReplacementItem(26219, "Osmumten's fang");
+            view[0] = new ItemReplacementPanel(new NoOpActions()
+            {
+                @Override
+                public void selectReplacementSource(long requestId, int itemId)
+                {
+                    Assert.assertEquals(42, requestId);
+                    Assert.assertEquals(4151, itemId);
+                    view[0].showTabs(requestId, whip, List.of("doom", "zulrah"));
+                }
+
+                @Override
+                public void selectReplacementTabs(long requestId, List<String> names)
+                {
+                    selection.set(names);
+                    view[0].showTargets(requestId, List.of(fang), names);
+                }
+
+                @Override
+                public void replaceItems(long requestId, int itemId)
+                {
+                    Assert.assertEquals(42, requestId);
+                    Assert.assertEquals(26219, itemId);
+                    writes.incrementAndGet();
+                }
+            }, this::itemImage, () -> {});
+            ItemReplacementPanel panel = view[0];
+            panel.showSources(42, List.of(whip, new ReplacementItem(11802, "Armadyl godsword")));
+            findComponent(panel, JTextField.class).setText("whip");
+            JList<?> items = findComponent(panel, JList.class);
+            Assert.assertEquals(1, items.getModel().getSize());
+            items.setSelectedIndex(0);
+            findButton(panel, "Choose item").doClick();
+            findCheckBox(panel, "All matching tabs").doClick();
+            Assert.assertFalse(findButton(panel, "Continue (0)").isEnabled());
+            findCheckBox(panel, "doom").doClick();
+            findButton(panel, "Continue (1)").doClick();
+            Assert.assertEquals(List.of("doom"), selection.get());
+            findComponent(panel, JTextField.class).setText("fang");
+            findComponent(panel, JList.class).setSelectedIndex(0);
+            findButton(panel, "Review replacement").doClick();
+            Assert.assertEquals(0, writes.get());
+            panel.setSize(225, 600);
+            layoutTree(panel);
+            rendered[0] = new BufferedImage(225, 600, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D graphics = rendered[0].createGraphics();
+            panel.paint(graphics);
+            graphics.dispose();
+            findButton(panel, "Replace in 1 tab").doClick();
+        });
+        Assert.assertEquals(1, writes.get());
+        File output = new File("target/bank-tab-manager-replacement-preview.png");
+        output.getParentFile().mkdirs();
+        ImageIO.write(rendered[0], "png", output);
+    }
+
+    @Test
+    public void cancellingReplacementNeverAppliesChanges() throws Exception
+    {
+        AtomicInteger cancellations = new AtomicInteger();
+        SwingUtilities.invokeAndWait(() ->
+        {
+            ItemReplacementPanel panel = new ItemReplacementPanel(new NoOpActions()
+            {
+                @Override
+                public void cancelItemReplacement(long requestId)
+                {
+                    Assert.assertEquals(24, requestId);
+                    cancellations.incrementAndGet();
+                }
+
+                @Override
+                public void replaceItems(long requestId, int itemId)
+                {
+                    Assert.fail("Cancelling must not replace any items");
+                }
+            }, this::itemImage, () -> {});
+            panel.showSources(24, List.of(new ReplacementItem(4151, "Abyssal whip")));
+            findButton(panel, "Cancel").doClick();
+        });
+        Assert.assertEquals(1, cancellations.get());
+    }
+
+    private static JButton findButton(java.awt.Container parent, String text)
+    {
+        for (Component component : parent.getComponents())
+        {
+            if (component instanceof JButton && text.equals(((JButton) component).getText()))
+            {
+                return (JButton) component;
+            }
+            if (component instanceof java.awt.Container)
+            {
+                JButton result = findButton((java.awt.Container) component, text);
+                if (result != null)
+                {
+                    return result;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static JCheckBox findCheckBox(java.awt.Container parent, String text)
+    {
+        for (Component component : parent.getComponents())
+        {
+            if (component instanceof JCheckBox && text.equals(((JCheckBox) component).getText()))
+            {
+                return (JCheckBox) component;
+            }
+            if (component instanceof java.awt.Container)
+            {
+                JCheckBox result = findCheckBox((java.awt.Container) component, text);
+                if (result != null)
+                {
+                    return result;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static <T extends Component> T findComponent(java.awt.Container parent, Class<T> type)
+    {
+        for (Component component : parent.getComponents())
+        {
+            if (type.isInstance(component))
+            {
+                return type.cast(component);
+            }
+            if (component instanceof java.awt.Container)
+            {
+                T result = findComponent((java.awt.Container) component, type);
+                if (result != null)
+                {
+                    return result;
+                }
+            }
+        }
+        return null;
     }
 
     private static JTree findTree(java.awt.Container parent)
@@ -350,6 +509,31 @@ public class BankTabStoragePanelRenderTest
 
         @Override
         public void moveEntry(String id, String parentId, int index)
+        {
+        }
+
+        @Override
+        public void startItemReplacement()
+        {
+        }
+
+        @Override
+        public void selectReplacementSource(long requestId, int itemId)
+        {
+        }
+
+        @Override
+        public void selectReplacementTabs(long requestId, List<String> names)
+        {
+        }
+
+        @Override
+        public void replaceItems(long requestId, int itemId)
+        {
+        }
+
+        @Override
+        public void cancelItemReplacement(long requestId)
         {
         }
     }

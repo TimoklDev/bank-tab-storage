@@ -4,16 +4,31 @@ import com.google.gson.Gson;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
+import net.runelite.api.ItemContainer;
+import net.runelite.api.MenuEntry;
+import net.runelite.api.events.MenuEntryAdded;
+import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.gameval.InventoryID;
+import net.runelite.api.widgets.Widget;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.ProfileChanged;
 import net.runelite.client.game.ItemManager;
+import net.runelite.client.game.ItemVariationMapping;
 import net.runelite.client.game.chatbox.ChatboxItemSearch;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDependency;
@@ -27,9 +42,9 @@ import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.util.ImageUtil;
 
 @PluginDescriptor(
-    name = "Bank Tab Storage",
-    description = "Save, restore, show, hide, import, and export complete Bank Tags tabs. Requires the Bank Tags plugin!",
-    tags = {"bank", "tags", "storage", "layout", "loadout", "preset"}
+    name = "Bank Tab Manager",
+    description = "Organize Bank Tags tabs, save layouts, and replace items across tabs. Requires the Bank Tags plugin!",
+    tags = {"bank", "tags", "storage", "manager", "layout", "loadout", "preset", "upgrade"}
 )
 @PluginDependency(BankTagsPlugin.class)
 public final class BankTabStoragePlugin extends Plugin implements StorageActions
@@ -76,6 +91,22 @@ public final class BankTabStoragePlugin extends Plugin implements StorageActions
     private BankTabStorageCodec codec;
     private BankTabStoragePanel panel;
     private NavigationButton navigationButton;
+    private long replacementSequence;
+    private volatile ReplacementSession replacementSession;
+
+    private static final class ReplacementSession
+    {
+        private final long id;
+        private final long profileId;
+        private ReplacementItem source;
+        private List<String> tabs = List.of();
+
+        private ReplacementSession(long id, long profileId)
+        {
+            this.id = id;
+            this.profileId = profileId;
+        }
+    }
 
     @Override
     protected void startUp()
@@ -90,7 +121,7 @@ public final class BankTabStoragePlugin extends Plugin implements StorageActions
             panel = new BankTabStoragePanel(this, itemManager::getImage);
             panel.setStorage(storedTabs, storageLayout, "Drag to organize. Right-click for more.");
             navigationButton = NavigationButton.builder()
-                .tooltip("Bank Tab Storage")
+                .tooltip("Bank Tab Manager")
                 .icon(createNavigationIcon())
                 .priority(5)
                 .panel(panel)
@@ -112,6 +143,7 @@ public final class BankTabStoragePlugin extends Plugin implements StorageActions
             panel = null;
         });
         bankTags = null;
+        replacementSession = null;
         codec = null;
         storedTabs = List.of();
         storageLayout = StorageLayout.empty();
@@ -123,9 +155,312 @@ public final class BankTabStoragePlugin extends Plugin implements StorageActions
     {
         clientThread.invokeLater(() ->
         {
+            closeReplacement();
             loadStorage();
             storedTabs = immutable(StoredTabCollection.syncEnabled(storedTabs, bankTags.visibleNames()));
             publish("Loaded storage for the active profile");
+        });
+    }
+
+    @Subscribe
+    public void onMenuEntryAdded(MenuEntryAdded event)
+    {
+        MenuEntry original = event.getMenuEntry();
+        if (bankTags == null || original == null || !"View tag tab".equals(original.getOption()))
+        {
+            return;
+        }
+        String name = BankTagMenu.tabName(original.getOption(), original.getParam1(),
+            original.getTarget(), bankTags.visibleNames());
+        if (name == null)
+        {
+            return;
+        }
+        BankTagMenu.addEntries(client.getMenu(), original, hide -> importLiveTab(name, hide));
+    }
+
+    private void importLiveTab(String name, boolean hide)
+    {
+        runOnClient(() ->
+        {
+            if (!bankTags.visibleNames().contains(name))
+            {
+                throw new IllegalArgumentException("That bank tag tab is no longer visible");
+            }
+            StoredBankTag tab = bankTags.capture(name);
+            changingBankTabs = true;
+            try
+            {
+                if (hide)
+                {
+                    bankTags.setVisible(name, false);
+                    bankTags.refreshBank(name, true);
+                    tab = tab.withEnabled(false);
+                }
+                storedTabs = immutable(StoredTabCollection.merge(storedTabs, List.of(tab), false));
+                persist();
+            }
+            finally
+            {
+                changingBankTabs = false;
+            }
+            publish((hide ? "Saved and hid '" : "Imported '") + name + "'");
+        });
+    }
+
+    @Override
+    public void startItemReplacement()
+    {
+        runOnClient(() ->
+        {
+            requireOpenBank();
+            Set<Integer> ids = new LinkedHashSet<>();
+            for (StoredBankTag tab : replacementTabs())
+            {
+                ids.addAll(tab.getAllItemIds());
+            }
+            List<ReplacementItem> choices = itemChoices(ids);
+            if (choices.isEmpty())
+            {
+                throw new IllegalArgumentException("There are no items in your saved or live tag tabs to replace");
+            }
+            ReplacementSession session = new ReplacementSession(++replacementSequence, configManager.getProfile().getId());
+            replacementSession = session;
+            publishReplacement(session, view -> view.showReplacementSources(session.id, choices));
+        });
+    }
+
+    @Override
+    public void selectReplacementSource(long requestId, int itemId)
+    {
+        runOnClient(() ->
+        {
+            ReplacementSession session = requireReplacement(requestId);
+            int sourceId = itemManager.canonicalize(itemId);
+            List<String> names = matchingTabs(sourceId);
+            if (names.isEmpty())
+            {
+                throw new IllegalArgumentException("This item is no longer in any of your tag tabs");
+            }
+            session.source = new ReplacementItem(sourceId, itemManager.getItemComposition(sourceId).getName());
+            session.tabs = List.of();
+            publishReplacement(session, view -> view.showReplacementTabs(session.id, session.source, names));
+        });
+    }
+
+    @Override
+    public void selectReplacementTabs(long requestId, List<String> names)
+    {
+        List<String> selection = List.copyOf(names);
+        runOnClient(() ->
+        {
+            ReplacementSession session = requireReplacement(requestId);
+            if (session.source == null)
+            {
+                throw new IllegalArgumentException("Choose the item to replace first");
+            }
+            Set<String> valid = new LinkedHashSet<>(matchingTabs(session.source.getId()));
+            Set<String> selected = new LinkedHashSet<>();
+            for (String name : selection)
+            {
+                selected.add(StoredBankTag.normalizeName(name));
+            }
+            if (selected.isEmpty() || !valid.containsAll(selected))
+            {
+                throw new IllegalArgumentException("Choose matching tabs. Some tab contents may have changed");
+            }
+            List<ReplacementItem> choices = itemChoices(bankItemIds());
+            choices.removeIf(item -> item.getId() == session.source.getId());
+            if (choices.isEmpty())
+            {
+                throw new IllegalArgumentException("Your bank has no other items available as a replacement");
+            }
+            session.tabs = List.copyOf(selected);
+            publishReplacement(session, view -> view.showReplacementTargets(session.id, choices, session.tabs));
+        });
+    }
+
+    @Override
+    public void replaceItems(long requestId, int itemId)
+    {
+        runOnClient(() ->
+        {
+            ReplacementSession session = requireReplacement(requestId);
+            int replacement = itemManager.canonicalize(itemId);
+            if (session.source == null || session.tabs.isEmpty() || replacement == session.source.getId())
+            {
+                throw new IllegalArgumentException("Choose two different items and at least one matching tab");
+            }
+            if (!bankItemIds().contains(replacement))
+            {
+                throw new IllegalArgumentException("The replacement item must still be in your bank");
+            }
+            Set<String> selected = new LinkedHashSet<>(session.tabs);
+            if (!new LinkedHashSet<>(matchingTabs(session.source.getId())).containsAll(selected))
+            {
+                throw new IllegalArgumentException("The selected tabs have changed. Choose the matching tabs again");
+            }
+            TabItemReplacement replacer = replacer();
+            List<StoredBankTag> live = bankTags.captureKnownTabs();
+            List<StoredBankTag> liveChanges = new ArrayList<>();
+            List<StoredBankTag> liveBefore = new ArrayList<>();
+            for (StoredBankTag tab : live)
+            {
+                if (selected.contains(tab.getName()) && replacer.contains(tab, session.source.getId()))
+                {
+                    liveBefore.add(tab);
+                    liveChanges.add(replacer.replace(tab, session.source.getId(), replacement));
+                }
+            }
+            List<StoredBankTag> savedChanges = replacer.replaceSelected(storedTabs, selected,
+                session.source.getId(), replacement);
+            List<StoredBankTag> savedBefore = storedTabs;
+            StorageLayout layoutBefore = storageLayout;
+            changingBankTabs = true;
+            try
+            {
+                for (StoredBankTag tab : liveChanges)
+                {
+                    bankTags.applySnapshot(tab);
+                }
+                storedTabs = immutable(savedChanges);
+                persist();
+                bankTags.refreshBank();
+            }
+            catch (RuntimeException exception)
+            {
+                storedTabs = savedBefore;
+                storageLayout = layoutBefore;
+                try
+                {
+                    for (StoredBankTag tab : liveBefore)
+                    {
+                        bankTags.applySnapshot(tab);
+                    }
+                    persist();
+                    bankTags.refreshBank();
+                }
+                catch (RuntimeException restoreFailure)
+                {
+                    exception.addSuppressed(restoreFailure);
+                }
+                throw exception;
+            }
+            finally
+            {
+                changingBankTabs = false;
+            }
+            closeReplacement();
+            publish("Replaced " + session.source.getName() + " in " + selected.size()
+                + (selected.size() == 1 ? " tab" : " tabs"));
+        });
+    }
+
+    @Override
+    public void cancelItemReplacement(long requestId)
+    {
+        runOnClient(() ->
+        {
+            if (replacementSession != null && replacementSession.id == requestId)
+            {
+                closeReplacement();
+            }
+        });
+    }
+
+    private TabItemReplacement replacer()
+    {
+        return new TabItemReplacement(itemManager::canonicalize, ItemVariationMapping::map);
+    }
+
+    private List<StoredBankTag> replacementTabs()
+    {
+        List<StoredBankTag> tabs = new ArrayList<>(storedTabs);
+        tabs.addAll(bankTags.captureKnownTabs());
+        return tabs;
+    }
+
+    private List<String> matchingTabs(int itemId)
+    {
+        Set<String> names = new TreeSet<>();
+        TabItemReplacement replacer = replacer();
+        for (StoredBankTag tab : replacementTabs())
+        {
+            if (replacer.contains(tab, itemId))
+            {
+                names.add(tab.getName());
+            }
+        }
+        return new ArrayList<>(names);
+    }
+
+    private List<ReplacementItem> itemChoices(Collection<Integer> ids)
+    {
+        Map<Integer, ReplacementItem> choices = new LinkedHashMap<>();
+        for (int id : ids)
+        {
+            int canonical = itemManager.canonicalize(id);
+            String name = itemManager.getItemComposition(canonical).getName();
+            if (name != null && !name.isEmpty() && !"null".equals(name))
+            {
+                choices.putIfAbsent(canonical, new ReplacementItem(canonical, name));
+            }
+        }
+        List<ReplacementItem> result = new ArrayList<>(choices.values());
+        result.sort(Comparator.comparing(ReplacementItem::getName, String.CASE_INSENSITIVE_ORDER)
+            .thenComparingInt(ReplacementItem::getId));
+        return result;
+    }
+
+    private Set<Integer> bankItemIds()
+    {
+        requireOpenBank();
+        ItemContainer bank = client.getItemContainer(InventoryID.BANK);
+        return ReplacementBankItems.collect(bank.getItems(), itemManager::canonicalize,
+            id -> itemManager.getItemComposition(id).getPlaceholderTemplateId() >= 0);
+    }
+
+    private void requireOpenBank()
+    {
+        Widget bank = client.getWidget(InterfaceID.Bankmain.UNIVERSE);
+        if (client.getGameState() != GameState.LOGGED_IN || bank == null || bank.isHidden()
+            || client.getItemContainer(InventoryID.BANK) == null)
+        {
+            throw new IllegalArgumentException("Open your bank to replace items in tag tabs");
+        }
+    }
+
+    private ReplacementSession requireReplacement(long id)
+    {
+        requireOpenBank();
+        ReplacementSession session = replacementSession;
+        if (session == null || session.id != id || session.profileId != configManager.getProfile().getId())
+        {
+            throw new IllegalArgumentException("This replacement session has ended. Start it again");
+        }
+        return session;
+    }
+
+    private void publishReplacement(ReplacementSession session, Consumer<BankTabStoragePanel> action)
+    {
+        SwingUtilities.invokeLater(() ->
+        {
+            if (panel != null && replacementSession == session)
+            {
+                action.accept(panel);
+            }
+        });
+    }
+
+    private void closeReplacement()
+    {
+        replacementSession = null;
+        SwingUtilities.invokeLater(() ->
+        {
+            if (panel != null && replacementSession == null)
+            {
+                panel.closeItemReplacement();
+            }
         });
     }
 

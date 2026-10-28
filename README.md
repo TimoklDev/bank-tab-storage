@@ -1,6 +1,6 @@
-# Bank Tab Storage
+# Bank Tab Manager
 
-Bank Tab Storage adds a RuneLite side panel for keeping reusable snapshots of Bank Tags tabs. It requires RuneLite's Bank Tags plugin.
+Bank Tab Manager adds a RuneLite side panel for keeping reusable snapshots of Bank Tags tabs. It requires RuneLite's Bank Tags plugin.
 
 ## Features
 
@@ -15,6 +15,8 @@ Bank Tab Storage adds a RuneLite side panel for keeping reusable snapshots of Ba
 - Choose folder icons with the same chatbox item search used by Bank Tags
 - Drag tabs and folders to move them or change their order in storage
 - Read the sidebar with smooth UI fonts, independent of the game's font
+- Replace an item across selected saved and live tag tabs, including hidden tabs
+- Hide or import a tag tab directly from its in-game right-click menu
 
 ## Behavior
 
@@ -23,6 +25,20 @@ Bank Tab Storage adds a RuneLite side panel for keeping reusable snapshots of Ba
 `Load` replaces the matching live tag data with the saved snapshot and shows the tab. `Hide` removes only the tab from the bank sidebar. Right-click a saved tab and choose `Remove saved tab` to delete its snapshot and hide the tab while keeping its live tagged items, icon, and layout.
 
 Storage follows the active RuneLite profile because it is saved through RuneLite's configuration system.
+
+The plugin was previously named Bank Tab Storage. The existing plugin entry, saved configuration, folders, and earlier clipboard exports remain compatible.
+
+Item counts include unique item IDs from both tags and saved layouts. Repeated layout positions and empty slots do not inflate the count.
+
+## Replacing items
+
+Open your bank and choose `Replace item in tabs` at the top of the panel. Search for an item from your saved or live tag tabs. Select the matching tabs, or use `All matching tabs`, then search for a replacement from items currently in your bank. Review the old item, new item, and affected tabs before applying.
+
+Both live tag data and matching saved snapshots are updated. Repeated item positions in layouts are retained, variation tags remain variation tags, and unchecked tabs are kept as they are. Folder organization and tab visibility are preserved. Empty bank placeholders cannot be selected as upgrades. The replacement must still be in the bank when you apply the change.
+
+## In-game tab menu
+
+Right-click a Bank Tags tab in the bank and choose `Hide tab` to save its current contents in the manager and hide its bank sidebar icon. Choose `Import to Bank Tab Manager` to save or update just that tab without hiding it. The original left-click tab action remains available.
 
 ## Folders and ordering
 

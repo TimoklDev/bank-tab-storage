@@ -1,6 +1,7 @@
 package com.banktabstorage;
 
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
@@ -125,6 +126,10 @@ final class BankTabStoragePanel extends PluginPanel
     private final JLabel noticeLabel = new JLabel("Drag to organize. Right-click for more.");
     private final JButton loadButton;
     private final JButton toggleButton;
+    private final JButton replaceButton;
+    private final CardLayout viewLayout = new CardLayout();
+    private final JPanel views = new JPanel(viewLayout);
+    private final ItemReplacementPanel replacementPanel;
     private StorageLayout storageLayout = StorageLayout.empty();
     private boolean updating;
 
@@ -149,12 +154,12 @@ final class BankTabStoragePanel extends PluginPanel
         branding.setOpaque(false);
         JLabel icon = new JLabel(new ImageIcon(ImageUtil.resizeImage(
             ImageUtil.loadImageResource(BankTabStoragePanel.class, "header-icon.png"), 28, 28)));
-        icon.getAccessibleContext().setAccessibleName("Bank Tab Storage icon");
+        icon.getAccessibleContext().setAccessibleName("Bank Tab Manager icon");
         branding.add(icon, BorderLayout.WEST);
         JPanel titleGroup = new JPanel();
         titleGroup.setLayout(new BoxLayout(titleGroup, BoxLayout.Y_AXIS));
         titleGroup.setOpaque(false);
-        JLabel title = new JLabel("Bank Tab Storage");
+        JLabel title = new JLabel("Bank Tab Manager");
         title.setForeground(Color.WHITE);
         title.setFont(NAME_FONT.deriveFont(14f));
         title.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -200,6 +205,12 @@ final class BankTabStoragePanel extends PluginPanel
         folderButton.addActionListener(event -> createFolder(null));
         toolbar.add(folderButton);
         header.add(toolbar);
+        header.add(Box.createVerticalStrut(5));
+        replaceButton = button("Replace item in tabs", Color.WHITE);
+        replaceButton.setAlignmentX(Component.LEFT_ALIGNMENT);
+        replaceButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 27));
+        replaceButton.addActionListener(event -> actions.startItemReplacement());
+        header.add(replaceButton);
         add(header, BorderLayout.NORTH);
 
         configureTree();
@@ -207,7 +218,9 @@ final class BankTabStoragePanel extends PluginPanel
         scrollPane.setBorder(BorderFactory.createEmptyBorder());
         scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         scrollPane.getViewport().setBackground(BACKGROUND);
-        add(scrollPane, BorderLayout.CENTER);
+        JPanel library = new JPanel(new BorderLayout(0, 7));
+        library.setOpaque(false);
+        library.add(scrollPane, BorderLayout.CENTER);
 
         JPanel footer = new JPanel(new BorderLayout(0, 5));
         footer.setOpaque(false);
@@ -224,7 +237,12 @@ final class BankTabStoragePanel extends PluginPanel
         noticeLabel.setFont(DETAIL_FONT);
         noticeLabel.setPreferredSize(new Dimension(180, 16));
         footer.add(noticeLabel, BorderLayout.SOUTH);
-        add(footer, BorderLayout.SOUTH);
+        library.add(footer, BorderLayout.SOUTH);
+        replacementPanel = new ItemReplacementPanel(actions, imageProvider, this::closeItemReplacement);
+        views.setOpaque(false);
+        views.add(library, "library");
+        views.add(replacementPanel, "replacement");
+        add(views, BorderLayout.CENTER);
         updateSelection();
         updateCount();
     }
@@ -315,7 +333,31 @@ final class BankTabStoragePanel extends PluginPanel
 
     void showError(String message)
     {
-        JOptionPane.showMessageDialog(this, message, "Bank Tab Storage", JOptionPane.ERROR_MESSAGE);
+        replacementPanel.operationFailed();
+        JOptionPane.showMessageDialog(this, message, "Bank Tab Manager", JOptionPane.ERROR_MESSAGE);
+    }
+
+    void showReplacementSources(long id, List<ReplacementItem> choices)
+    {
+        replacementPanel.showSources(id, choices);
+        replaceButton.setEnabled(false);
+        viewLayout.show(views, "replacement");
+    }
+
+    void showReplacementTabs(long id, ReplacementItem source, List<String> names)
+    {
+        replacementPanel.showTabs(id, source, names);
+    }
+
+    void showReplacementTargets(long id, List<ReplacementItem> choices, List<String> names)
+    {
+        replacementPanel.showTargets(id, choices, names);
+    }
+
+    void closeItemReplacement()
+    {
+        viewLayout.show(views, "library");
+        replaceButton.setEnabled(true);
     }
 
     private void configureTree()
@@ -793,8 +835,11 @@ final class BankTabStoragePanel extends PluginPanel
                 String state = tab.isEnabled() ? "Visible" : "Hidden";
                 int stateWidth = painter.getFontMetrics().stringWidth(state);
                 String details = tab.getItemCount() + (tab.getItemCount() == 1 ? " item" : " items");
+                painter.setFont(DETAIL_FONT.deriveFont(12f));
+                painter.setColor(new Color(218, 218, 218));
                 painter.drawString(clipText(details, painter.getFontMetrics(), getWidth() - 62 - stateWidth),
                     46, detailY);
+                painter.setFont(DETAIL_FONT);
                 painter.setColor(tab.isEnabled() ? GREEN : MUTED);
                 painter.drawString(state, getWidth() - stateWidth - 8, detailY);
                 painter.setColor(new Color(51, 51, 51));
@@ -844,7 +889,7 @@ final class BankTabStoragePanel extends PluginPanel
     private static final class EntryTransfer implements Transferable
     {
         private static final DataFlavor FLAVOR = new DataFlavor(
-            DataFlavor.javaJVMLocalObjectMimeType + ";class=java.lang.Object", "Bank Tab Storage entry");
+            DataFlavor.javaJVMLocalObjectMimeType + ";class=java.lang.Object", "Bank Tab Manager entry");
         private final JTree source;
         private final String id;
 

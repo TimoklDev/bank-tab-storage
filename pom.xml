@@ -3,8 +3,8 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.banktabstorage</groupId>
     <artifactId>bank-tab-storage</artifactId>
-    <version>1.1.0</version>
-    <name>Bank Tab Storage</name>
+    <version>1.2.0</version>
+    <name>Bank Tab Manager</name>
     <properties>
         <maven.compiler.release>11</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -31,7 +31,7 @@
         </dependency>
     </dependencies>
     <build>
-        <finalName>Bank-Tab-Storage</finalName>
+        <finalName>Bank-Tab-Manager</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

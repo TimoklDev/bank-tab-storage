@@ -54,7 +54,7 @@ final class BankTabStorageCodec
             JsonObject root = gson.fromJson(normalized, JsonObject.class);
             if (root == null)
             {
-                throw new IllegalArgumentException("The clipboard does not contain Bank Tab Storage data");
+                throw new IllegalArgumentException("The clipboard does not contain Bank Tab Manager data");
             }
             BankTabStorageData data = gson.fromJson(root, BankTabStorageData.class);
             return new BankTabStorageData(data.validatedTabs(), data.validatedLayout());
@@ -65,7 +65,7 @@ final class BankTabStorageCodec
         }
         catch (RuntimeException exception)
         {
-            throw new IllegalArgumentException("The clipboard does not contain valid Bank Tab Storage data", exception);
+            throw new IllegalArgumentException("The clipboard does not contain valid Bank Tab Manager data", exception);
         }
     }
 
